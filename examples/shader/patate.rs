@@ -125,8 +125,6 @@ fn prepare_bind_group(
 
 impl bevy::render::render_graph::Node for GameOfLifeNode {
     fn update(&mut self, world: &mut World) {
-        info!("update");
-
         let pipeline = world.resource::<GameOfLifePipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
@@ -166,8 +164,6 @@ impl bevy::render::render_graph::Node for GameOfLifeNode {
         render_context: &mut bevy::render::renderer::RenderContext,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        info!("run");
-
         let bind_groups = world.resource::<GameOfLifeImageBindGroups>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<GameOfLifePipeline>();

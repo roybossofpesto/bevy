@@ -65,7 +65,8 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     } else {
         alive = false;
     }
-    let color = vec4<f32>(f32(alive));
+    let foo = randomFloat(invocation_id.y << 16u | invocation_id.x);
+    let color = vec4<f32>(f32(alive), foo, foo, 1);
 
     textureStore(output, location, color);
 }
