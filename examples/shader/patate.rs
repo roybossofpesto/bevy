@@ -1,15 +1,19 @@
 //! patate
 
 use bevy::prelude::*;
+use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
+use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
 use bevy::render::render_graph::{RenderGraph, RenderLabel};
 use bevy::render::render_resource::{binding_types::texture_storage_2d, *};
-use bevy::render::RenderApp;
+use bevy::render::{Render, RenderApp, RenderSet};
+use bevy::render::texture::GpuImage;
+
 use std::borrow::Cow;
 
 const SHADER_ASSET_PATH: &str = "shaders/game_of_life.wgsl";
-
 const DISPLAY_FACTOR: u32 = 4;
 const SIZE: (u32, u32) = (1280 / DISPLAY_FACTOR, 720 / DISPLAY_FACTOR);
+const WORKGROUP_SIZE: u32 = 8;
 
 #[derive(Resource)]
 struct GameOfLifePipeline {
@@ -60,7 +64,7 @@ impl FromWorld for GameOfLifePipeline {
     }
 }
 
-#[derive(Debug, Hash, Clone, Eq, PartialEq, RenderLabel)]
+#[derive(Hash, Clone, Eq, PartialEq, Debug, RenderLabel)]
 struct GameOfLifeLabel;
 
 enum GameOfLifeState {
@@ -81,10 +85,49 @@ impl Default for GameOfLifeNode {
     }
 }
 
+#[derive(Resource, Clone, ExtractResource)]
+struct GameOfLifeImages {
+    texture_a: Handle<Image>,
+    texture_b: Handle<Image>,
+}
+
+#[derive(Resource)]
+struct GameOfLifeImageBindGroups {
+    group_a: BindGroup,
+    group_b: BindGroup,
+}
+
+fn prepare_bind_group(
+    mut commands: Commands,
+    pipeline: Res<GameOfLifePipeline>,
+    gpu_images: Res<RenderAssets<GpuImage>>,
+    game_of_life_images: Res<GameOfLifeImages>,
+    render_device: Res<bevy::render::renderer::RenderDevice>,
+) {
+    let view_a = gpu_images.get(&game_of_life_images.texture_a).unwrap();
+    let view_b = gpu_images.get(&game_of_life_images.texture_b).unwrap();
+    let bind_group_0 = render_device.create_bind_group(
+        None,
+        &pipeline.texture_bind_group_layout,
+        &BindGroupEntries::sequential((&view_a.texture_view, &view_b.texture_view)),
+    );
+    let bind_group_1 = render_device.create_bind_group(
+        None,
+        &pipeline.texture_bind_group_layout,
+        &BindGroupEntries::sequential((&view_b.texture_view, &view_a.texture_view)),
+    );
+    let bind_groups = GameOfLifeImageBindGroups {
+        group_a: bind_group_0,
+        group_b: bind_group_1,
+    };
+    commands.insert_resource(bind_groups);
+}
+
 impl bevy::render::render_graph::Node for GameOfLifeNode {
     fn update(&mut self, world: &mut World) {
+        info!("update");
+
         let pipeline = world.resource::<GameOfLifePipeline>();
-        /*
         let pipeline_cache = world.resource::<PipelineCache>();
 
         // if the corresponding pipeline has loaded, transition to the next stage
@@ -114,9 +157,7 @@ impl bevy::render::render_graph::Node for GameOfLifeNode {
                 self.state = GameOfLifeState::Update(0);
             }
             GameOfLifeState::Update(_) => unreachable!(),
-        }*/
-
-        info!("update");
+        }
     }
 
     fn run(
@@ -125,7 +166,9 @@ impl bevy::render::render_graph::Node for GameOfLifeNode {
         render_context: &mut bevy::render::renderer::RenderContext,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        /*let bind_groups = &world.resource::<GameOfLifeImageBindGroups>().0;
+        info!("run");
+
+        let bind_groups = world.resource::<GameOfLifeImageBindGroups>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<GameOfLifePipeline>();
 
@@ -140,7 +183,7 @@ impl bevy::render::render_graph::Node for GameOfLifeNode {
                 let init_pipeline = pipeline_cache
                     .get_compute_pipeline(pipeline.init_pipeline)
                     .unwrap();
-                pass.set_bind_group(0, &bind_groups[0], &[]);
+                pass.set_bind_group(0, &bind_groups.group_a, &[]);
                 pass.set_pipeline(init_pipeline);
                 pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
             }
@@ -148,12 +191,19 @@ impl bevy::render::render_graph::Node for GameOfLifeNode {
                 let update_pipeline = pipeline_cache
                     .get_compute_pipeline(pipeline.update_pipeline)
                     .unwrap();
-                pass.set_bind_group(0, &bind_groups[index], &[]);
+                pass.set_bind_group(
+                    0,
+                    if index == 0 {
+                        &bind_groups.group_a
+                    } else {
+                        &bind_groups.group_b
+                    },
+                    &[],
+                );
                 pass.set_pipeline(update_pipeline);
                 pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
             }
-        }*/
-        info!("run");
+        }
 
         Ok(())
     }
@@ -165,12 +215,12 @@ impl Plugin for GameOfLifeComputePlugin {
     fn build(&self, app: &mut App) {
         // Extract the game of life image resource from the main world into the render world
         // for operation on by the compute shader and display on the sprite.
-        // app.add_plugins(ExtractResourcePlugin::<GameOfLifeImages>::default());
+        app.add_plugins(ExtractResourcePlugin::<GameOfLifeImages>::default());
         let render_app = app.sub_app_mut(RenderApp);
-        // render_app.add_systems(
-        //     Render,
-        //     prepare_bind_group.in_set(RenderSet::PrepareBindGroups),
-        // );
+        render_app.add_systems(
+            Render,
+            prepare_bind_group.in_set(RenderSet::PrepareBindGroups),
+        );
 
         let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
         render_graph.add_node(GameOfLifeLabel, GameOfLifeNode::default());
@@ -178,8 +228,8 @@ impl Plugin for GameOfLifeComputePlugin {
         info!("build");
     }
     fn finish(&self, app: &mut App) {
-        // let render_app = app.sub_app_mut(RenderApp);
-        // render_app.init_resource::<GameOfLifePipeline>();
+        let render_app = app.sub_app_mut(RenderApp);
+        render_app.init_resource::<GameOfLifePipeline>();
         info!("finish");
     }
 }
@@ -206,10 +256,41 @@ fn main() {
                 .set(ImagePlugin::default_nearest()),
             GameOfLifeComputePlugin,
         ))
-        .add_systems(Startup, init)
+        .add_systems(Startup, setup)
         .run();
 }
 
-fn init(mut commands: Commands) {
-    info!("coucou");
+fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    info!("setup");
+
+    let mut image = Image::new_fill(
+        Extent3d {
+            width: SIZE.0,
+            height: SIZE.1,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[0, 0, 0, 255],
+        TextureFormat::R32Float,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    image.texture_descriptor.usage =
+        TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
+    let image0 = images.add(image.clone());
+    let image1 = images.add(image);
+
+    commands.spawn((
+        Sprite {
+            image: image0.clone(),
+            custom_size: Some(Vec2::new(SIZE.0 as f32, SIZE.1 as f32)),
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(DISPLAY_FACTOR as f32)),
+    ));
+    commands.spawn(Camera2d);
+
+    commands.insert_resource(GameOfLifeImages {
+        texture_a: image0,
+        texture_b: image1,
+    });
 }
