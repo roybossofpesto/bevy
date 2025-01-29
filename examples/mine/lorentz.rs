@@ -3,7 +3,7 @@
 //! You can toggle wireframes with the space bar except on wasm. Wasm does not support
 //! `POLYGON_MODE_LINE` on the gpu.
 
-use bevy::animation::{animated_field, AnimationTargetId};
+use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
@@ -23,6 +23,7 @@ fn main() {
 
 const X_EXTENT: f32 = 900.;
 const NUM_VERTICES: u32 = 16;
+const ANIM_DEPTH: f32 = 1e-2;
 
 fn setup(
     mut commands: Commands,
@@ -74,18 +75,38 @@ fn setup(
         planet_animation_target_id,
         AnimatableCurve::new(
             animated_field!(Transform::translation),
-            UnevenSampleAutoCurve::new([0.0, 1.0, 2.0, 3.0, 4.0].into_iter().zip([
-                Vec3::new(-X_EXTENT / 2., 0.0, 0.0),
-                Vec3::new(-X_EXTENT / 2., 1.0, 0.0),
-                Vec3::new(-X_EXTENT / 2., 0.0, 0.0),
-                Vec3::new(-X_EXTENT / 2., -1.0, 0.0),
+            UnevenSampleAutoCurve::new([0.0, 0.20, 0.5, 0.75, 1.0].into_iter().zip([
+                Vec3::new(-X_EXTENT / 2., 0.0, ANIM_DEPTH),
+                Vec3::new(-X_EXTENT / 2., 100.0, ANIM_DEPTH),
+                Vec3::new(-X_EXTENT / 2., 0.0, ANIM_DEPTH),
+                Vec3::new(-X_EXTENT / 2., -100.0, ANIM_DEPTH),
                 // in case seamless looping is wanted, the last keyframe should
                 // be the same as the first one
-                Vec3::new(-X_EXTENT / 2., 0.0, 0.0),
+                Vec3::new(-X_EXTENT / 2., 0.0, ANIM_DEPTH),
             ]))
             .expect("should be able to build translation curve because we pass in valid samples"),
         ),
     );
+    let (graph, animation_index) = AnimationGraph::from_clip(animations.add(animation));
+    let mut player = AnimationPlayer::default();
+    player.play(animation_index).repeat();
+
+    let planet_shape = meshes.add(Capsule2d::new(10.0, 30.0));
+    let planet_material = materials.add(Color::hsl(90.0, 0.95, 0.7));
+    let planet_entity_id = commands
+        .spawn((
+            Mesh2d(planet_shape),
+            MeshMaterial2d(planet_material),
+            planet,
+            AnimationGraphHandle(graphs.add(graph)),
+            player,
+        ))
+        .id();
+
+    commands.entity(planet_entity_id).insert(AnimationTarget {
+        id: planet_animation_target_id,
+        player: planet_entity_id,
+    });
 
     #[cfg(not(target_arch = "wasm32"))]
     commands.spawn((
