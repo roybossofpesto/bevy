@@ -4,10 +4,11 @@
 //! `POLYGON_MODE_LINE` on the gpu.
 
 use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
-use bevy::color::palettes::basic::{BLUE, GRAY, GREEN, RED};
+use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, GREEN, RED};
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
+use bevy::ui::RelativeCursorPosition;
 use std::f32::consts::PI;
 
 fn main() {
@@ -23,7 +24,11 @@ fn main() {
     app.add_systems(Update, toggle_wireframe);
 
     app.add_systems(Startup, setup_ui_widgets);
-    app.add_systems(Update, update_ui_buttons);
+    app.add_systems(Update, update_ui_widget_buttons);
+    app.add_systems(
+        Update,
+        (drag_ui_widget_sliders, update_ui_widget_sliders).chain(),
+    );
 
     app.run();
 }
@@ -43,11 +48,16 @@ enum WidgetType {
 struct ButtonData {
     label: &'static str,
     index: u32,
+    count: u32,
 }
 
 impl ButtonData {
     const fn new(label: &'static str, index: u32) -> Self {
-        Self { label, index }
+        Self {
+            label,
+            index,
+            count: 0,
+        }
     }
 }
 
@@ -174,18 +184,51 @@ fn setup_scene(
     });
 }
 
-fn update_ui_buttons(
+fn drag_ui_widget_sliders(
     mut interaction_query: Query<
-        (&Interaction, &mut BorderColor, &Children),
+        (&Interaction, &RelativeCursorPosition, &mut SliderData),
+        With<Button>,
+    >,
+) {
+    for (interaction, relative_cursor, mut data) in &mut interaction_query {
+        if !matches!(*interaction, Interaction::Pressed) {
+            continue;
+        }
+        let Some(pos) = relative_cursor.normalized else {
+            continue;
+        };
+        data.ratio = pos.x.clamp(0.0, 1.0);
+    }
+}
+
+fn update_ui_widget_sliders(
+    query: Query<(&Children, &SliderData), Changed<SliderData>>,
+    mut node_query: Query<&mut Node, Without<Text>>,
+) {
+    for (children, data) in &query {
+        info!(
+            "slider [{}] \"{}\" -> {}",
+            data.index, data.label, data.ratio,
+        );
+        let mut node_iter = node_query.iter_many_mut(children);
+        if let Some(mut node) = node_iter.fetch_next() {
+            // All nodes are the same width, so `NODE_RECTS[0]` is as good as any other.
+            node.width = Val::Percent(100.0 * data.ratio);
+        }
+    }
+}
+
+fn update_ui_widget_buttons(
+    mut query: Query<
+        (&Interaction, &mut BorderColor, &mut ButtonData),
         (Changed<Interaction>, With<Button>),
     >,
-    text_query: Query<&Text>,
 ) {
-    for (interaction, mut border_color, children) in &mut interaction_query {
+    for (interaction, mut border_color, mut data) in &mut query {
         match *interaction {
             Interaction::Pressed => {
-                let label = text_query.get(children[children.len() - 1]).unwrap();
-                info!("clicked on {1:?} {0}x", children.len(), label);
+                data.count += 1;
+                info!("click [{}] \"{}\" {}x", data.index, data.label, data.count);
                 border_color.0 = RED.into();
             }
             Interaction::Hovered => {
@@ -208,30 +251,24 @@ fn setup_ui_widgets(mut commands: Commands) {
         ..default()
     });
 
-    frame.with_children(|parent| {
-        parent.spawn((
-            Text::new("Lorentz!"),
-            Node {
-                margin: UiRect::all(Val::Px(5.0)),
-                ..default()
-            },
-        ));
-    });
-
     for widget in UI_WIDGETS.iter() {
         match widget {
             WidgetType::Button(data) => {
                 frame.with_children(|parent| {
-                    parent
-                        .spawn((
-                            Button,
-                            Node {
-                                border: UiRect::all(Val::Px(5.0)),
-                                margin: UiRect::all(Val::Px(5.0)),
-                                ..default()
-                            },
-                        ))
-                        .with_child(Text::new(format!("{} [{}]", data.label, data.index)));
+                    let mut container = parent.spawn((
+                        Button,
+                        Node {
+                            border: UiRect::all(Val::Px(5.0)),
+                            padding: UiRect::all(Val::Px(5.0)),
+                            margin: UiRect::right(Val::Px(5.0)),
+                            ..default()
+                        },
+                        BorderColor(BLACK.into()),
+                    ));
+
+                    container.insert((Interaction::None, data.clone()));
+
+                    container.with_child(Text::new(data.label));
                 });
             }
             WidgetType::Slider(data) => {
@@ -240,9 +277,18 @@ fn setup_ui_widgets(mut commands: Commands) {
                         Button,
                         Node {
                             border: UiRect::all(Val::Px(5.0)),
-                            margin: UiRect::all(Val::Px(5.0)),
+                            padding: UiRect::all(Val::Px(5.0)),
+                            margin: UiRect::right(Val::Px(5.0)),
+                            width: Val::Px(100.0),
                             ..default()
                         },
+                        BorderColor(BLACK.into()),
+                    ));
+
+                    container.insert((
+                        Interaction::None,
+                        RelativeCursorPosition::default(),
+                        data.clone(),
                     ));
 
                     container.with_child((
@@ -257,11 +303,15 @@ fn setup_ui_widgets(mut commands: Commands) {
                         BackgroundColor(GRAY.into()),
                     ));
 
-                    container.with_child(Text::new(format!("{} !{}!", data.label, data.index)));
+                    container.with_child(Text::new(data.label));
                 });
             }
         }
     }
+
+    frame.with_children(|parent| {
+        parent.spawn(Text::new("hello world"));
+    });
 }
 
 #[cfg(not(target_arch = "wasm32"))]
