@@ -7,6 +7,7 @@ use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
+use std::f32::consts::PI;
 
 fn main() {
     let mut app = App::new();
@@ -24,6 +25,8 @@ fn main() {
 const X_EXTENT: f32 = 900.;
 const NUM_VERTICES: u32 = 16;
 const ANIM_DEPTH: f32 = 1e-2;
+const ANIM_DURATION: f32 = 4.0; // sec
+const NUM_ANIM_STEPS: u32 = 64;
 
 fn setup(
     mut commands: Commands,
@@ -69,24 +72,39 @@ fn setup(
 
     let planet = Name::new("planet");
 
+    let mut tts = Vec::new();
+    let mut pps = Vec::new();
+    let mut rrs = Vec::new();
+    for kk in 0..NUM_ANIM_STEPS {
+        let aa = kk as f32 / (NUM_ANIM_STEPS - 1) as f32;
+        let tt = ANIM_DURATION * aa;
+        let angle = 2.0 * PI * aa;
+        tts.push(tt);
+        pps.push(Vec3::new(
+            angle.cos() * 300.0,
+            angle.sin() * 300.0,
+            ANIM_DEPTH,
+        ));
+        rrs.push(Quat::from_axis_angle(Vec3::Z, angle));
+    }
+
     let mut animation = AnimationClip::default();
     let planet_animation_target_id = AnimationTargetId::from_name(&planet);
     animation.add_curve_to_target(
         planet_animation_target_id,
         AnimatableCurve::new(
             animated_field!(Transform::translation),
-            UnevenSampleAutoCurve::new([0.0, 0.20, 0.5, 0.75, 1.0].into_iter().zip([
-                Vec3::new(-X_EXTENT / 2., 0.0, ANIM_DEPTH),
-                Vec3::new(-X_EXTENT / 2., 100.0, ANIM_DEPTH),
-                Vec3::new(-X_EXTENT / 2., 0.0, ANIM_DEPTH),
-                Vec3::new(-X_EXTENT / 2., -100.0, ANIM_DEPTH),
-                // in case seamless looping is wanted, the last keyframe should
-                // be the same as the first one
-                Vec3::new(-X_EXTENT / 2., 0.0, ANIM_DEPTH),
-            ]))
-            .expect("should be able to build translation curve because we pass in valid samples"),
+            UnevenSampleAutoCurve::new(tts.clone().into_iter().zip(pps)).unwrap(),
         ),
     );
+    animation.add_curve_to_target(
+        planet_animation_target_id,
+        AnimatableCurve::new(
+            animated_field!(Transform::rotation),
+            UnevenSampleAutoCurve::new(tts.into_iter().zip(rrs)).unwrap(),
+        ),
+    );
+
     let (graph, animation_index) = AnimationGraph::from_clip(animations.add(animation));
     let mut player = AnimationPlayer::default();
     player.play(animation_index).repeat();
