@@ -4,6 +4,7 @@
 //! `POLYGON_MODE_LINE` on the gpu.
 
 use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
+use bevy::color::palettes::basic::{BLUE, GRAY, GREEN, RED};
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
@@ -21,8 +22,8 @@ fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     app.add_systems(Update, toggle_wireframe);
 
-    app.add_systems(Startup, setup_ui);
-    app.add_systems(Update, update_ui);
+    app.add_systems(Startup, setup_ui_widgets);
+    app.add_systems(Update, update_ui_buttons);
 
     app.run();
 }
@@ -32,6 +33,47 @@ const NUM_VERTICES: u32 = 16;
 const ANIM_DEPTH: f32 = 1e-2;
 const ANIM_DURATION: f32 = 4.0; // sec
 const NUM_ANIM_STEPS: u32 = 64;
+
+enum WidgetType {
+    Button(ButtonData),
+    Slider(SliderData),
+}
+
+#[derive(Clone, Component)]
+struct ButtonData {
+    label: &'static str,
+    index: u32,
+}
+
+impl ButtonData {
+    const fn new(label: &'static str, index: u32) -> Self {
+        Self { label, index }
+    }
+}
+
+#[derive(Clone, Component)]
+struct SliderData {
+    label: &'static str,
+    index: u32,
+    ratio: f32,
+}
+
+impl SliderData {
+    const fn new(label: &'static str, index: u32) -> Self {
+        Self {
+            label,
+            index,
+            ratio: 0.5,
+        }
+    }
+}
+
+static UI_WIDGETS: [WidgetType; 4] = [
+    WidgetType::Button(ButtonData::new("Kikou", 0)),
+    WidgetType::Button(ButtonData::new("Lol", 1)),
+    WidgetType::Slider(SliderData::new("AA", 0)),
+    WidgetType::Slider(SliderData::new("BB", 1)),
+];
 
 fn setup_scene(
     mut commands: Commands,
@@ -132,7 +174,7 @@ fn setup_scene(
     });
 }
 
-fn update_ui(
+fn update_ui_buttons(
     mut interaction_query: Query<
         (&Interaction, &mut BorderColor, &Children),
         (Changed<Interaction>, With<Button>),
@@ -142,63 +184,84 @@ fn update_ui(
     for (interaction, mut border_color, children) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
-                let label = text_query.get(children[0]).unwrap();
-                info!("clicked on {:?} {:?}", children[0], label);
-                border_color.0 = Color::srgb(1.0, 0.0, 0.0);
+                let label = text_query.get(children[children.len() - 1]).unwrap();
+                info!("clicked on {1:?} {0}x", children.len(), label);
+                border_color.0 = RED.into();
             }
             Interaction::Hovered => {
-                border_color.0 = Color::srgb(0.0, 1.0, 0.0);
+                border_color.0 = GREEN.into();
             }
             Interaction::None => {
-                border_color.0 = Color::srgb(0.0, 0.0, 1.0);
+                border_color.0 = BLUE.into();
             }
         }
     }
 }
 
-fn setup_ui(mut commands: Commands) {
-    #[cfg(not(target_arch = "wasm32"))]
-    commands.spawn((
-        Text::new("[SPACE] wireframe"),
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            left: Val::Px(10.0),
-            ..default()
-        },
-    ));
+fn setup_ui_widgets(mut commands: Commands) {
+    let mut frame = commands.spawn(Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        left: Val::Px(10.0),
+        bottom: Val::Px(10.0),
+        align_items: AlignItems::End,
+        ..default()
+    });
 
-    commands
-        .spawn(Node {
-            width: Val::Px(150.0),
-            height: Val::Percent(100.0),
-            left: Val::Px(10.0),
-            bottom: Val::Px(10.0),
-            align_items: AlignItems::End,
-            ..default()
-        })
-        .with_children(|parent| {
-            parent
-                .spawn((
-                    Button,
-                    Node {
-                        border: UiRect::all(Val::Px(5.0)),
-                        margin: UiRect::all(Val::Px(5.0)),
-                        ..default()
-                    },
-                ))
-                .with_child(Text::new("Hello"));
-            parent
-                .spawn((
-                    Button,
-                    Node {
-                        border: UiRect::all(Val::Px(5.0)),
-                        margin: UiRect::all(Val::Px(5.0)),
-                        ..default()
-                    },
-                ))
-                .with_child(Text::new("World"));
-        });
+    frame.with_children(|parent| {
+        parent.spawn((
+            Text::new("Lorentz!"),
+            Node {
+                margin: UiRect::all(Val::Px(5.0)),
+                ..default()
+            },
+        ));
+    });
+
+    for widget in UI_WIDGETS.iter() {
+        match widget {
+            WidgetType::Button(data) => {
+                frame.with_children(|parent| {
+                    parent
+                        .spawn((
+                            Button,
+                            Node {
+                                border: UiRect::all(Val::Px(5.0)),
+                                margin: UiRect::all(Val::Px(5.0)),
+                                ..default()
+                            },
+                        ))
+                        .with_child(Text::new(format!("{} [{}]", data.label, data.index)));
+                });
+            }
+            WidgetType::Slider(data) => {
+                frame.with_children(|parent| {
+                    let mut container = parent.spawn((
+                        Button,
+                        Node {
+                            border: UiRect::all(Val::Px(5.0)),
+                            margin: UiRect::all(Val::Px(5.0)),
+                            ..default()
+                        },
+                    ));
+
+                    container.with_child((
+                        Node {
+                            position_type: PositionType::Absolute,
+                            top: Val::Px(0.0),
+                            left: Val::Px(0.0),
+                            height: Val::Percent(100.0),
+                            width: Val::Percent(100.0 * data.ratio),
+                            ..default()
+                        },
+                        BackgroundColor(GRAY.into()),
+                    ));
+
+                    container.with_child(Text::new(format!("{} !{}!", data.label, data.index)));
+                });
+            }
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
