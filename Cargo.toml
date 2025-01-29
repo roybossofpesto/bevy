@@ -511,6 +511,17 @@ ureq = { version = "2.10.1", features = ["json"] }
 wasm-bindgen = { version = "0.2" }
 web-sys = { version = "0.3", features = ["Window"] }
 
+
+
+
+
+[[example]]
+name = "lorentz"
+path = "examples/mine/lorentz.rs"
+doc-scrape-examples = true
+
+
+
 [[example]]
 name = "hello_world"
 path = "examples/hello_world.rs"
