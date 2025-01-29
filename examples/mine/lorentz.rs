@@ -15,10 +15,15 @@ fn main() {
         DefaultPlugins,
         #[cfg(not(target_arch = "wasm32"))]
         Wireframe2dPlugin,
-    ))
-    .add_systems(Startup, setup);
+    ));
+    app.add_systems(Startup, setup_scene);
+
     #[cfg(not(target_arch = "wasm32"))]
     app.add_systems(Update, toggle_wireframe);
+
+    app.add_systems(Startup, setup_ui);
+    app.add_systems(Update, update_ui);
+
     app.run();
 }
 
@@ -28,7 +33,7 @@ const ANIM_DEPTH: f32 = 1e-2;
 const ANIM_DURATION: f32 = 4.0; // sec
 const NUM_ANIM_STEPS: u32 = 64;
 
-fn setup(
+fn setup_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -81,11 +86,11 @@ fn setup(
         let angle = 2.0 * PI * aa;
         tts.push(tt);
         pps.push(Vec3::new(
-            angle.cos() * 300.0,
-            angle.sin() * 300.0,
+            angle.cos() * 200.0,
+            angle.sin() * 200.0,
             ANIM_DEPTH,
         ));
-        rrs.push(Quat::from_axis_angle(Vec3::Z, angle));
+        rrs.push(Quat::from_axis_angle(Vec3::Z, angle + PI / 2.0));
     }
 
     let mut animation = AnimationClip::default();
@@ -109,8 +114,8 @@ fn setup(
     let mut player = AnimationPlayer::default();
     player.play(animation_index).repeat();
 
-    let planet_shape = meshes.add(Capsule2d::new(10.0, 30.0));
-    let planet_material = materials.add(Color::hsl(90.0, 0.95, 0.7));
+    let planet_shape = meshes.add(Capsule2d::new(10.0, 50.0));
+    let planet_material = materials.add(Color::srgb(1.0, 0.0, 1.0));
     let planet_entity_id = commands
         .spawn((
             Mesh2d(planet_shape),
@@ -125,17 +130,75 @@ fn setup(
         id: planet_animation_target_id,
         player: planet_entity_id,
     });
+}
 
+fn update_ui(
+    mut interaction_query: Query<
+        (&Interaction, &mut BorderColor, &Children),
+        (Changed<Interaction>, With<Button>),
+    >,
+    text_query: Query<&Text>,
+) {
+    for (interaction, mut border_color, children) in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                let label = text_query.get(children[0]).unwrap();
+                info!("clicked on {:?} {:?}", children[0], label);
+                border_color.0 = Color::srgb(1.0, 0.0, 0.0);
+            }
+            Interaction::Hovered => {
+                border_color.0 = Color::srgb(0.0, 1.0, 0.0);
+            }
+            Interaction::None => {
+                border_color.0 = Color::srgb(0.0, 0.0, 1.0);
+            }
+        }
+    }
+}
+
+fn setup_ui(mut commands: Commands) {
     #[cfg(not(target_arch = "wasm32"))]
     commands.spawn((
-        Text::new("Animated Lorentz transform"),
+        Text::new("[SPACE] wireframe"),
         Node {
             position_type: PositionType::Absolute,
-            top: Val::Px(12.0),
-            left: Val::Px(12.0),
+            top: Val::Px(10.0),
+            left: Val::Px(10.0),
             ..default()
         },
     ));
+
+    commands
+        .spawn(Node {
+            width: Val::Px(150.0),
+            height: Val::Percent(100.0),
+            left: Val::Px(10.0),
+            bottom: Val::Px(10.0),
+            align_items: AlignItems::End,
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        border: UiRect::all(Val::Px(5.0)),
+                        margin: UiRect::all(Val::Px(5.0)),
+                        ..default()
+                    },
+                ))
+                .with_child(Text::new("Hello"));
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        border: UiRect::all(Val::Px(5.0)),
+                        margin: UiRect::all(Val::Px(5.0)),
+                        ..default()
+                    },
+                ))
+                .with_child(Text::new("World"));
+        });
 }
 
 #[cfg(not(target_arch = "wasm32"))]
