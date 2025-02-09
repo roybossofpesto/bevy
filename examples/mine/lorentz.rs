@@ -5,11 +5,13 @@
 
 use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
 use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, GREEN, RED};
+#[cfg(feature = "bevy_dev_tools")]
+use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
 use bevy::ui::RelativeCursorPosition;
-use std::f32::consts::PI;
+use core::f32::consts::PI;
 
 fn main() {
     let mut app = App::new();
@@ -18,24 +20,49 @@ fn main() {
         #[cfg(not(target_arch = "wasm32"))]
         Wireframe2dPlugin,
     ));
+    #[cfg(feature = "bevy_dev_tools")]
+    app.add_plugins(FpsOverlayPlugin {
+        config: FpsOverlayConfig::default(),
+    });
+
     app.add_systems(Startup, setup_scene);
 
     #[cfg(not(target_arch = "wasm32"))]
     app.add_systems(Update, toggle_wireframe);
+    #[cfg(feature = "bevy_dev_tools")]
+    app.add_systems(Update, toggle_fps);
 
     app.add_systems(Startup, setup_ui_widgets);
     app.add_systems(Update, update_ui_widget_buttons);
     app.add_systems(
         Update,
-        (drag_ui_widget_sliders, update_ui_widget_sliders).chain(),
+        (
+            drag_ui_widget_sliders,
+            update_ui_widget_sliders,
+            update_lorentz_points,
+        )
+            .chain(),
     );
 
     app.run();
 }
 
-const X_EXTENT: f32 = 900.;
-const NUM_VERTICES: u32 = 16;
-const ANIM_DEPTH: f32 = 1e-2;
+const NUM_VERTICES: u32 = 65;
+const VERTICES_EXTENT: f32 = 600.;
+
+#[derive(Component)]
+struct LorentzPoint {
+    init_xx: f32,
+    init_yy: f32,
+}
+
+impl LorentzPoint {
+    const fn new(init_xx: f32, init_yy: f32) -> Self {
+        Self { init_xx, init_yy }
+    }
+}
+
+const ANIM_DEPTH: f32 = 2.0;
 const ANIM_DURATION: f32 = 4.0; // sec
 const NUM_ANIM_STEPS: u32 = 64;
 
@@ -78,11 +105,12 @@ impl SliderData {
     }
 }
 
-static UI_WIDGETS: [WidgetType; 4] = [
+static UI_WIDGETS: [WidgetType; 5] = [
     WidgetType::Button(ButtonData::new("Kikou", 0)),
     WidgetType::Button(ButtonData::new("Lol", 1)),
     WidgetType::Slider(SliderData::new("AA", 0)),
     WidgetType::Slider(SliderData::new("BB", 1)),
+    WidgetType::Slider(SliderData::new("Angle", 2)),
 ];
 
 fn setup_scene(
@@ -92,7 +120,7 @@ fn setup_scene(
     mut animations: ResMut<Assets<AnimationClip>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    info!("setup");
+    info!("setup_scene");
 
     commands.spawn(Camera2d);
 
@@ -111,20 +139,23 @@ fn setup_scene(
     //     Vec2::new(50.0, -50.0),
     // )),
 
-    for kk in 0..NUM_VERTICES {
-        let shape = meshes.add(Circle::new(10.0 + kk as f32));
-        let material = materials.add(Color::hsl(36. * kk as f32, 0.95, 0.7));
+    for ii in 0..NUM_VERTICES {
+        for jj in 0..NUM_VERTICES {
+            let alpha = (ii * NUM_VERTICES + jj) as f32 / (NUM_VERTICES * NUM_VERTICES - 1) as f32;
+            let shape = meshes.add(Circle::new(2.0));
+            let material = materials.add(Color::hsl(360.0 * alpha, 0.95, 0.7));
 
-        commands.spawn((
-            Mesh2d(shape),
-            MeshMaterial2d(material),
-            Transform::from_xyz(
-                // Distribute shapes from -X_EXTENT/2 to +X_EXTENT/2.
-                -X_EXTENT / 2. + kk as f32 / (NUM_VERTICES - 1) as f32 * X_EXTENT,
-                0.0,
-                0.0,
-            ),
-        ));
+            let init_xx =
+                -VERTICES_EXTENT / 2. + jj as f32 / (NUM_VERTICES - 1) as f32 * VERTICES_EXTENT;
+            let init_yy =
+                -VERTICES_EXTENT / 2. + ii as f32 / (NUM_VERTICES - 1) as f32 * VERTICES_EXTENT;
+            commands.spawn((
+                Mesh2d(shape),
+                MeshMaterial2d(material),
+                Transform::from_xyz(init_xx, init_yy, alpha),
+                LorentzPoint::new(init_xx, init_yy),
+            ));
+        }
     }
 
     let planet = Name::new("planet");
@@ -201,15 +232,32 @@ fn drag_ui_widget_sliders(
     }
 }
 
+fn update_lorentz_points(
+    slider_query: Query<&SliderData, Changed<SliderData>>,
+    mut point_query: Query<(&LorentzPoint, &mut Transform)>,
+) {
+    for slider_data in &slider_query {
+        if slider_data.index != 2 {
+            continue;
+        };
+
+        let angle = (slider_data.ratio - 0.5) * PI / 4.0;
+        let cha = f32::cosh(angle);
+        let sha = f32::sinh(angle);
+
+        for (point_data, mut point_transform) in &mut point_query {
+            let xx = cha * point_data.init_xx - sha * point_data.init_yy;
+            let yy = cha * point_data.init_yy - sha * point_data.init_xx;
+            *point_transform = Transform::from_xyz(xx, yy, 0.0)
+        }
+    }
+}
+
 fn update_ui_widget_sliders(
     query: Query<(&Children, &SliderData), Changed<SliderData>>,
     mut node_query: Query<&mut Node, Without<Text>>,
 ) {
     for (children, data) in &query {
-        info!(
-            "slider [{}] \"{}\" -> {}",
-            data.index, data.label, data.ratio,
-        );
         let mut node_iter = node_query.iter_many_mut(children);
         if let Some(mut node) = node_iter.fetch_next() {
             // All nodes are the same width, so `NODE_RECTS[0]` is as good as any other.
@@ -228,7 +276,6 @@ fn update_ui_widget_buttons(
         match *interaction {
             Interaction::Pressed => {
                 data.count += 1;
-                info!("click [{}] \"{}\" {}x", data.index, data.label, data.count);
                 border_color.0 = RED.into();
             }
             Interaction::Hovered => {
@@ -251,62 +298,64 @@ fn setup_ui_widgets(mut commands: Commands) {
         ..default()
     });
 
-    for widget in UI_WIDGETS.iter() {
-        match widget {
-            WidgetType::Button(data) => {
-                frame.with_children(|parent| {
-                    let mut container = parent.spawn((
-                        Button,
-                        Node {
-                            border: UiRect::all(Val::Px(5.0)),
-                            padding: UiRect::all(Val::Px(5.0)),
-                            margin: UiRect::right(Val::Px(5.0)),
-                            ..default()
-                        },
-                        BorderColor(BLACK.into()),
-                    ));
+    let mut make_widget = |widget: &WidgetType| match widget {
+        WidgetType::Button(data) => {
+            frame.with_children(|parent| {
+                let mut container = parent.spawn((
+                    Button,
+                    Node {
+                        border: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::all(Val::Px(5.0)),
+                        margin: UiRect::right(Val::Px(5.0)),
+                        ..default()
+                    },
+                    BorderColor(BLACK.into()),
+                ));
 
-                    container.insert((Interaction::None, data.clone()));
+                container.insert((Interaction::None, data.clone()));
 
-                    container.with_child(Text::new(data.label));
-                });
-            }
-            WidgetType::Slider(data) => {
-                frame.with_children(|parent| {
-                    let mut container = parent.spawn((
-                        Button,
-                        Node {
-                            border: UiRect::all(Val::Px(5.0)),
-                            padding: UiRect::all(Val::Px(5.0)),
-                            margin: UiRect::right(Val::Px(5.0)),
-                            width: Val::Px(100.0),
-                            ..default()
-                        },
-                        BorderColor(BLACK.into()),
-                    ));
-
-                    container.insert((
-                        Interaction::None,
-                        RelativeCursorPosition::default(),
-                        data.clone(),
-                    ));
-
-                    container.with_child((
-                        Node {
-                            position_type: PositionType::Absolute,
-                            top: Val::Px(0.0),
-                            left: Val::Px(0.0),
-                            height: Val::Percent(100.0),
-                            width: Val::Percent(100.0 * data.ratio),
-                            ..default()
-                        },
-                        BackgroundColor(GRAY.into()),
-                    ));
-
-                    container.with_child(Text::new(data.label));
-                });
-            }
+                container.with_child(Text::new(data.label));
+            });
         }
+        WidgetType::Slider(data) => {
+            frame.with_children(|parent| {
+                let mut container = parent.spawn((
+                    Button,
+                    Node {
+                        border: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::all(Val::Px(5.0)),
+                        margin: UiRect::right(Val::Px(5.0)),
+                        width: Val::Px(100.0),
+                        ..default()
+                    },
+                    BorderColor(BLACK.into()),
+                ));
+
+                container.insert((
+                    Interaction::None,
+                    RelativeCursorPosition::default(),
+                    data.clone(),
+                ));
+
+                container.with_child((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        top: Val::Px(0.0),
+                        left: Val::Px(0.0),
+                        height: Val::Percent(100.0),
+                        width: Val::Percent(100.0 * data.ratio),
+                        ..default()
+                    },
+                    BackgroundColor(GRAY.into()),
+                ));
+
+                container.with_child(Text::new(data.label));
+            });
+        }
+    };
+
+    for widget in UI_WIDGETS.iter() {
+        make_widget(widget);
     }
 
     frame.with_children(|parent| {
@@ -321,5 +370,12 @@ fn toggle_wireframe(
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
         wireframe_config.global = !wireframe_config.global;
+    }
+}
+
+#[cfg(feature = "bevy_dev_tools")]
+fn toggle_fps(mut fps_config: ResMut<FpsOverlayConfig>, keyboard: Res<ButtonInput<KeyCode>>) {
+    if keyboard.just_pressed(KeyCode::KeyQ) {
+        fps_config.enabled = !fps_config.enabled;
     }
 }
