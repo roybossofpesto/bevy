@@ -1,7 +1,9 @@
 //! offroad ftw
 
-use bevy::color::palettes::basic::SILVER;
 use bevy::prelude::*;
+
+use bevy::color::palettes::basic::SILVER;
+use bevy::render::camera::ScalingMode;
 
 use bevy_render::render_asset::RenderAssetUsages;
 use bevy_render::render_resource::Extent3d;
@@ -32,6 +34,18 @@ fn setup(
     });
 
     commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))),
+        MeshMaterial3d(debug_material),
+        Transform::from_xyz(0.0, 3.0, 0.0),
+    ));
+
+    // ground plane
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
+        MeshMaterial3d(materials.add(Color::from(SILVER))),
+    ));
+
+    commands.spawn((
         PointLight {
             shadows_enabled: true,
             intensity: 10_000_000.,
@@ -42,15 +56,16 @@ fn setup(
         Transform::from_xyz(8.0, 16.0, 8.0),
     ));
 
-    // ground plane
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
-        MeshMaterial3d(materials.add(Color::from(SILVER))),
-    ));
-
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 7., 14.0).looking_at(Vec3::new(0., 1., 0.), Vec3::Y),
+        Projection::from(OrthographicProjection {
+            // 20 world units per pixel of window height.
+            scaling_mode: ScalingMode::FixedVertical {
+                viewport_height: 20.0,
+            },
+            ..OrthographicProjection::default_3d()
+        }),
+        Transform::from_xyz(-10.0, 5.0, 14.0).looking_at(Vec3::new(0., 1., 0.), Vec3::Y),
     ));
 }
 
