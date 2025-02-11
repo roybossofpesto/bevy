@@ -275,17 +275,17 @@ static TRACK0_PIECES: [TrackPiece; 15] = [
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(14.0)),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(12.0)),
+    TrackPiece::Straight(StraightData::from_length(11.0)),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(4.0)),
+    TrackPiece::Straight(StraightData::from_length(3.0)),
     TrackPiece::Finish,
 ];
 
 pub static TRACK0_DATA: TrackData = TrackData {
     pieces: &TRACK0_PIECES,
-    initial_position: Vec3::new(-10.0, 0.25, 0.0),
+    initial_position: Vec3::new(-12.0, 0.25, 0.0),
     initial_forward: Vec3::Z,
     initial_up: Vec3::Y,
     initial_left: -1.0,
