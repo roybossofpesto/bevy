@@ -93,6 +93,27 @@ fn setup(
     let pieces = vec![
         RoadPiece::Start,
         RoadPiece::Straight(StraightData::default()),
+        RoadPiece::Corner(CornerData::left_turn()),
+        RoadPiece::Straight(StraightData {
+            length: 8.0,
+            ..default()
+        }),
+        RoadPiece::Corner(CornerData::right_turn()),
+        RoadPiece::Straight(StraightData::default()),
+        RoadPiece::Corner(CornerData::right_turn()),
+        RoadPiece::Straight(StraightData {
+            length: 10.0,
+            ..default()
+        }),
+        RoadPiece::Corner(CornerData::right_turn()),
+        RoadPiece::Straight(StraightData {
+            length: 10.0,
+            ..default()
+        }),
+        RoadPiece::Corner(CornerData::right_turn()),
+        RoadPiece::Straight(StraightData::default()),
+        RoadPiece::Corner(CornerData::right_turn()),
+        RoadPiece::Straight(StraightData::default()),
         RoadPiece::Finish,
     ];
     commands.spawn((
@@ -190,58 +211,33 @@ impl Default for StraightData {
 
 #[derive(Debug)]
 struct CornerData {
+    left: f32,
+    right: f32,
     radius: f32,
     angle: f32,
     num_quads: u32,
 }
 
-impl Default for CornerData {
-    fn default() -> Self {
-        Self {
-            radius: 2.0,
-            angle: -PI / 2.0,
-            num_quads: 8,
-        }
-    }
-}
-
 impl CornerData {
-    const fn right_turn() -> Self {
+    fn right_turn() -> Self {
         Self {
+            left: -1.0,
+            right: 1.0,
             radius: 2.0,
             angle: PI / 2.0,
             num_quads: 8,
         }
     }
+    fn left_turn() -> Self {
+        Self {
+            left: -1.0,
+            right: 1.0,
+            radius: -2.0,
+            angle: PI / 2.0,
+            num_quads: 8,
+        }
+    }
 }
-
-// struct RoadPiece {
-//     left: f32,
-//     right: f32,
-//     length: f32,
-//     // angle: f32,
-// }
-
-// impl RoadPiece {
-//     const fn default() -> Self {
-//         Self {
-//             left: -1.0,
-//             right: 1.0,
-//             length: 4.0,
-//             // angle: 0.0,
-//             num_quads: 8,
-//         }
-//     }
-//     const fn straight(length: f32) -> Self {
-//         Self {
-//             left: -1.0,
-//             right: 1.0,
-//             length,
-//             // angle: 0.0,
-//             num_quads: 1,
-//         }
-//     }
-// }
 
 fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
     let mut mesh_positions: Vec<Vec3> = vec![];
@@ -249,57 +245,63 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
     let mut mesh_triangles: Vec<u32> = vec![];
 
     let initial_position = Vec3::new(-10.0, 0.25, 0.0);
-    let initial_forward = -Vec3::Z;
+    let initial_forward = Vec3::Z;
     let initial_up = Vec3::Y;
 
-    let mut push_section =
-        |position: &Vec3, forward: &Vec3, up: &Vec3, left: f32, right: f32| -> u32 {
-            let left_pos = position + forward.cross(initial_up) * left;
-            let right_pos = position + forward.cross(initial_up) * right;
-            let next_vertex = mesh_positions.len() as u32;
-            assert!(next_vertex % 2 == 0);
-            mesh_positions.push(left_pos);
-            mesh_positions.push(right_pos);
-            mesh_normals.push(initial_up);
-            mesh_normals.push(initial_up);
-            if next_vertex >= 2 {
-                let mut tri_aa = vec![next_vertex - 2, next_vertex - 1, next_vertex];
-                let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
-                mesh_triangles.append(&mut tri_aa);
-                mesh_triangles.append(&mut tri_bb);
-            }
-            next_vertex
-        };
+    let mut push_section = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
+        let left_pos = position + forward.cross(initial_up) * left;
+        let right_pos = position + forward.cross(initial_up) * right;
+        let next_vertex = mesh_positions.len() as u32;
+        assert!(next_vertex % 2 == 0);
+        mesh_positions.push(left_pos);
+        mesh_positions.push(right_pos);
+        mesh_normals.push(initial_up);
+        mesh_normals.push(initial_up);
+        if next_vertex >= 2 {
+            let mut tri_aa = vec![next_vertex - 2, next_vertex - 1, next_vertex];
+            let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
+            mesh_triangles.append(&mut tri_aa);
+            mesh_triangles.append(&mut tri_bb);
+        }
+        next_vertex
+    };
 
     let mut current_position = initial_position.clone();
     let mut current_forward = initial_forward.clone();
-
-    // assert!(piece.num_quads > 0);
-    // for _ in 0..piece.num_quads {
-    // }
+    // let current_up = initial_up.clone();
 
     for piece in pieces {
         match piece {
             RoadPiece::Start => {
                 info!("Start {:?}", current_position.clone());
-                let foo = push_section(&current_position, &current_forward, &initial_up, -1.0, 1.0);
+                let foo = push_section(&current_position, &current_forward, -1.0, 1.0);
                 assert!(foo == 0);
             }
             RoadPiece::Straight(data) => {
                 info!("Straight {:?} {:?}", current_position.clone(), data);
                 current_position += current_forward * data.length;
-                let foo = push_section(
-                    &current_position,
-                    &current_forward,
-                    &initial_up,
-                    data.left,
-                    data.right,
-                );
+                let foo = push_section(&current_position, &current_forward, data.left, data.right);
                 assert!(foo > 0);
             }
             RoadPiece::Corner(data) => {
                 info!("Corner {:?} {:?}", current_position.clone(), data);
-                // assert!(mesh_positions.len() > 0);
+                assert!(data.num_quads > 0);
+                let current_right = current_forward.cross(initial_up);
+                let center = current_position + current_right * data.radius;
+                let sign: f32 = if data.radius < 0.0 { 1.0 } else { -1.0 };
+                for kk in 0..data.num_quads {
+                    let ang = (kk + 1) as f32 / data.num_quads as f32 * data.angle;
+                    let pos = center - current_right * data.radius * f32::cos(ang)
+                        + current_forward * f32::abs(data.radius) * f32::sin(ang);
+                    let fwd = Quat::from_axis_angle(initial_up, sign * ang) * current_forward;
+                    // let fwd = current_forward;
+                    let foo = push_section(&pos, &fwd, data.left, data.right);
+                    assert!(foo > 0);
+                }
+                current_position += current_forward * f32::abs(data.radius);
+                current_forward =
+                    Quat::from_axis_angle(initial_up, sign * data.angle) * current_forward;
+                current_position += current_forward * data.radius;
             }
             RoadPiece::Finish => {
                 info!("Finish {:?}", current_position.clone());
@@ -311,7 +313,7 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
 
     assert!(mesh_triangles.len() % 3 == 0);
     info!("num_vertices {}", mesh_positions.len());
-    info!("{:?}", mesh_positions);
+    // info!("{:?}", mesh_positions);
     info!("num_triangles {}", mesh_triangles.len() / 3);
 
     let mut mesh = Mesh::new(
