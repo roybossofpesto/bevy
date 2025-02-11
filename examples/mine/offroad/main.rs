@@ -17,40 +17,37 @@ use bevy::image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamp
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::TextureDimension;
 use bevy::render::render_resource::TextureFormat;
-// use bevy::render::mesh;
 
 mod track;
 
-use track::{make_road_mesh, CornerData, RoadPiece, StraightData};
+use track::{make_track_mesh, TRACK0_PIECES};
 
 fn main() {
     let mut app = App::new();
 
     app.insert_resource(DirectionalLightShadowMap { size: 2048 });
-    app.insert_resource(WireframeConfig {
-        // The global wireframe config enables drawing of wireframes on every mesh,
-        // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
-        // regardless of the global configuration.
-        global: false,
-        // Controls the default color of all wireframes. Used as the default color for global wireframes.
-        // Can be changed per mesh using the `WireframeColor` component.
-        default_color: WHITE.into(),
-    });
 
-    app.add_plugins((DefaultPlugins, WireframePlugin));
+    #[cfg(feature = "bevy_dev_tools")]
+    {
+        // wireframe
+        app.insert_resource(WireframeConfig {
+            global: false,
+            default_color: WHITE.into(),
+        });
+        app.add_plugins((DefaultPlugins, WireframePlugin));
+        app.add_systems(
+            Update,
+            |mut wireframe_config: ResMut<WireframeConfig>,
+             keyboard: Res<ButtonInput<KeyCode>>|
+             -> () {
+                if keyboard.just_pressed(KeyCode::Space) {
+                    wireframe_config.global = !wireframe_config.global;
+                }
+            },
+        );
+    }
 
     app.add_systems(Startup, setup);
-
-    app.add_systems(
-        Update,
-        |mut wireframe_config: ResMut<WireframeConfig>,
-         keyboard: Res<ButtonInput<KeyCode>>|
-         -> () {
-            if keyboard.just_pressed(KeyCode::Space) {
-                wireframe_config.global = !wireframe_config.global;
-            }
-        },
-    );
 
     app.run();
 }
@@ -92,32 +89,6 @@ fn setup(
     ));
 
     // track
-    let pieces = vec![
-        RoadPiece::Start,
-        RoadPiece::Straight(StraightData::default()),
-        RoadPiece::Corner(CornerData::left_turn()),
-        RoadPiece::Straight(StraightData {
-            length: 8.0,
-            ..default()
-        }),
-        RoadPiece::Corner(CornerData::right_turn()),
-        RoadPiece::Straight(StraightData::default()),
-        RoadPiece::Corner(CornerData::right_turn()),
-        RoadPiece::Straight(StraightData {
-            length: 10.0,
-            ..default()
-        }),
-        RoadPiece::Corner(CornerData::right_turn()),
-        RoadPiece::Straight(StraightData {
-            length: 10.0,
-            ..default()
-        }),
-        RoadPiece::Corner(CornerData::right_turn()),
-        RoadPiece::Straight(StraightData::default()),
-        RoadPiece::Corner(CornerData::right_turn()),
-        RoadPiece::Straight(StraightData::default()),
-        RoadPiece::Finish,
-    ];
     // let track_material = materials.add(Color::from(BLUE));
     let track_material = materials.add(StandardMaterial {
         base_color_texture: Some(asset_server.load_with_settings(
@@ -143,7 +114,7 @@ fn setup(
         ..default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_road_mesh(&pieces))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK0_PIECES))),
         MeshMaterial3d(track_material),
     ));
 

@@ -5,7 +5,7 @@ use bevy::math::NormedVectorSpace;
 use std::f32::consts::PI;
 
 #[derive(Debug)]
-pub enum RoadPiece {
+pub enum TrackPiece {
     Start,
     Straight(StraightData),
     Corner(CornerData),
@@ -14,32 +14,38 @@ pub enum RoadPiece {
 
 #[derive(Debug)]
 pub struct StraightData {
-    pub left: f32,
-    pub right: f32,
-    pub length: f32,
+    left: f32,
+    right: f32,
+    length: f32,
 }
 
-impl Default for StraightData {
-    fn default() -> Self {
+impl StraightData {
+    const fn default() -> Self {
         Self {
             left: -1.0,
             right: 1.0,
             length: 2.0,
         }
     }
+    const fn from_length(length: f32) -> Self {
+        Self {
+            length,
+            ..StraightData::default()
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct CornerData {
-    pub left: f32,
-    pub right: f32,
-    pub radius: f32,
-    pub angle: f32,
-    pub num_quads: u32,
+    left: f32,
+    right: f32,
+    radius: f32,
+    angle: f32,
+    num_quads: u32,
 }
 
 impl CornerData {
-    pub fn right_turn() -> Self {
+    const fn right_turn() -> Self {
         Self {
             left: -1.0,
             right: 1.0,
@@ -48,7 +54,7 @@ impl CornerData {
             num_quads: 8,
         }
     }
-    pub fn left_turn() -> Self {
+    const fn left_turn() -> Self {
         Self {
             left: -1.0,
             right: 1.0,
@@ -59,7 +65,7 @@ impl CornerData {
     }
 }
 
-pub fn make_road_mesh(pieces: &Vec<RoadPiece>) -> bevy::render::mesh::Mesh {
+pub fn make_track_mesh(pieces: &[TrackPiece]) -> bevy::render::mesh::Mesh {
     use bevy::prelude::Quat;
     use bevy::prelude::Vec2;
     use bevy::prelude::Vec3;
@@ -106,7 +112,7 @@ pub fn make_road_mesh(pieces: &Vec<RoadPiece>) -> bevy::render::mesh::Mesh {
 
     for piece in pieces {
         match piece {
-            RoadPiece::Start => {
+            TrackPiece::Start => {
                 debug!("Start {:?}", current_position.clone());
                 assert!(current_length == 0.0);
                 let foo = push_section(
@@ -118,7 +124,7 @@ pub fn make_road_mesh(pieces: &Vec<RoadPiece>) -> bevy::render::mesh::Mesh {
                 );
                 assert!(foo == 0);
             }
-            RoadPiece::Straight(data) => {
+            TrackPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
                 current_position += current_forward * data.length;
                 current_length += data.length;
@@ -132,7 +138,7 @@ pub fn make_road_mesh(pieces: &Vec<RoadPiece>) -> bevy::render::mesh::Mesh {
                 );
                 assert!(foo > 0);
             }
-            RoadPiece::Corner(data) => {
+            TrackPiece::Corner(data) => {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);
                 assert!(data.num_quads > 0);
                 let current_right = current_forward.cross(initial_up);
@@ -153,7 +159,7 @@ pub fn make_road_mesh(pieces: &Vec<RoadPiece>) -> bevy::render::mesh::Mesh {
                 current_position += current_forward * data.radius;
                 current_length += f32::abs(data.radius) * data.angle;
             }
-            RoadPiece::Finish => {
+            TrackPiece::Finish => {
                 let pos_error = (current_position - initial_position).norm();
                 let dir_error = (current_forward - initial_forward).norm();
                 let is_looping: bool = pos_error < 1e-3 && dir_error < 1e-3;
@@ -190,3 +196,21 @@ pub fn make_road_mesh(pieces: &Vec<RoadPiece>) -> bevy::render::mesh::Mesh {
 
     mesh
 }
+
+pub static TRACK0_PIECES: [TrackPiece; 15] = [
+    TrackPiece::Start,
+    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Corner(CornerData::left_turn()),
+    TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::from_length(10.0)),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::from_length(12.0)),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::from_length(4.0)),
+    TrackPiece::Finish,
+];
