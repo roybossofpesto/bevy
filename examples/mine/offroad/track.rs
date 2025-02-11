@@ -87,7 +87,18 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     use bevy::prelude::Quat;
 
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
+    assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
+    assert!(track_data.initial_left < track_data.initial_right);
     assert!(track_data.num_segments > 0);
+    assert!(track_data.pieces.len() >= 2);
+    match &track_data.pieces[0] {
+        TrackPiece::Start => {}
+        _ => assert!(false, "!!! first piece should be a start !!!"),
+    }
+    match &track_data.pieces[track_data.pieces.len() - 1] {
+        TrackPiece::Finish => {}
+        _ => assert!(false, "!!! last piece should be a finish !!!"),
+    }
 
     let up = track_data.initial_up;
 
@@ -95,7 +106,6 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     let mut mesh_normals: Vec<Vec3> = vec![];
     let mut mesh_triangles: Vec<u32> = vec![];
     let mut mesh_uvs: Vec<Vec2> = vec![];
-
     let mut push_section =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
             let left_pos = position + forward.cross(up) * left;
@@ -289,7 +299,7 @@ static TRACK1_PIECES: [TrackPiece; 13] = [
 
 pub static TRACK1_DATA: TrackData = TrackData {
     pieces: &TRACK1_PIECES,
-    initial_position: Vec3::new(2.0, 2.25, -5.0),
+    initial_position: Vec3::new(1.0, 2.25, 0.0),
     initial_forward: Vec3::new(-1.0, 0.0, 0.0),
     initial_up: Vec3::Z,
     initial_left: -2.0,

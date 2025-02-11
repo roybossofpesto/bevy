@@ -84,7 +84,7 @@ fn setup(
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))),
         MeshMaterial3d(debug_material),
-        Transform::from_xyz(0.0, 3.0, 0.0),
+        Transform::from_xyz(5.0, 3.0, 5.0),
     ));
 
     // cube
@@ -94,7 +94,7 @@ fn setup(
             base_color_texture: Some(asset_server.load("textures/array_texture.png")),
             ..default()
         })),
-        Transform::from_xyz(3.0, 3.0, 0.0),
+        Transform::from_xyz(8.0, 3.0, 5.0),
     ));
 
     // track
