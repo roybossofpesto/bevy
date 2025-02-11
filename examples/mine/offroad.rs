@@ -3,14 +3,17 @@
 use bevy::prelude::*;
 
 // use bevy::color::palettes::basic::RED;
-use bevy::color::palettes::basic::BLUE;
+// use bevy::color::palettes::basic::BLUE;
 use bevy::color::palettes::basic::SILVER;
 use bevy::color::palettes::basic::WHITE;
+use bevy::math::Affine2;
 use bevy::math::NormedVectorSpace;
 use bevy::pbr::wireframe::WireframeConfig;
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::pbr::DirectionalLightShadowMap;
 use bevy::render::camera::ScalingMode;
+
+use bevy::image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
 
 use bevy::render::mesh::Indices;
 use bevy::render::render_asset::RenderAssetUsages;
@@ -30,7 +33,7 @@ fn main() {
         // The global wireframe config enables drawing of wireframes on every mesh,
         // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
         // regardless of the global configuration.
-        global: true,
+        global: false,
         // Controls the default color of all wireframes. Used as the default color for global wireframes.
         // Can be changed per mesh using the `WireframeColor` component.
         default_color: WHITE.into(),
@@ -117,9 +120,33 @@ fn setup(
         RoadPiece::Straight(StraightData::default()),
         RoadPiece::Finish,
     ];
+    // let track_material = materials.add(Color::from(BLUE));
+    let track_material = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load_with_settings(
+            // "textures/uv_checker_bw.png",
+            "textures/fantasy_ui_borders/panel-border-010-repeated.png",
+            |s: &mut _| {
+                *s = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        // rewriting mode to repeat image,
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..default()
+                    }),
+                    ..default()
+                }
+            },
+        )),
+
+        // uv_transform used here for proportions only, but it is full Affine2
+        // that's why you can use rotation and shift also
+        // uv_transform: Affine2::from_scale(Vec2::new(1.0 / 16.0, 1.0 / 16.0)),
+        uv_transform: Affine2::default(),
+        ..default()
+    });
     commands.spawn((
-        Mesh3d(meshes.add(make_road(&pieces))),
-        MeshMaterial3d(materials.add(Color::from(BLUE))),
+        Mesh3d(meshes.add(make_road_mesh(&pieces))),
+        MeshMaterial3d(track_material),
     ));
 
     // lights
@@ -240,48 +267,68 @@ impl CornerData {
     }
 }
 
-fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
-    let mut mesh_positions: Vec<Vec3> = vec![];
-    let mut mesh_normals: Vec<Vec3> = vec![];
-    let mut mesh_triangles: Vec<u32> = vec![];
-
+fn make_road_mesh(pieces: &Vec<RoadPiece>) -> Mesh {
     let initial_position = Vec3::new(-10.0, 0.25, 0.0);
     let initial_forward = Vec3::Z;
     let initial_up = Vec3::Y;
 
-    let mut push_section = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
-        let left_pos = position + forward.cross(initial_up) * left;
-        let right_pos = position + forward.cross(initial_up) * right;
-        let next_vertex = mesh_positions.len() as u32;
-        assert!(next_vertex % 2 == 0);
-        mesh_positions.push(left_pos);
-        mesh_positions.push(right_pos);
-        mesh_normals.push(initial_up);
-        mesh_normals.push(initial_up);
-        if next_vertex >= 2 {
-            let mut tri_aa = vec![next_vertex - 2, next_vertex - 1, next_vertex];
-            let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
-            mesh_triangles.append(&mut tri_aa);
-            mesh_triangles.append(&mut tri_bb);
-        }
-        next_vertex
-    };
+    let mut mesh_positions: Vec<Vec3> = vec![];
+    let mut mesh_normals: Vec<Vec3> = vec![];
+    let mut mesh_triangles: Vec<u32> = vec![];
+    let mut mesh_uvs: Vec<Vec2> = vec![];
+
+    let mut push_section =
+        |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
+            let left_pos = position + forward.cross(initial_up) * left;
+            let right_pos = position + forward.cross(initial_up) * right;
+            let next_vertex = mesh_positions.len() as u32;
+            assert!(next_vertex % 2 == 0);
+            mesh_positions.push(left_pos);
+            mesh_positions.push(right_pos);
+            mesh_normals.push(initial_up);
+            mesh_normals.push(initial_up);
+            mesh_uvs.push(Vec2::new(left, length));
+            mesh_uvs.push(Vec2::new(right, length));
+            if next_vertex >= 2 {
+                let mut tri_aa = vec![next_vertex - 2, next_vertex - 1, next_vertex];
+                let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
+                mesh_triangles.append(&mut tri_aa);
+                mesh_triangles.append(&mut tri_bb);
+            }
+            next_vertex
+        };
 
     let mut current_position = initial_position.clone();
     let mut current_forward = initial_forward.clone();
     // let current_up = initial_up.clone();
+    let mut current_length: f32 = 0.0;
 
     for piece in pieces {
         match piece {
             RoadPiece::Start => {
                 debug!("Start {:?}", current_position.clone());
-                let foo = push_section(&current_position, &current_forward, -1.0, 1.0);
+                assert!(current_length == 0.0);
+                let foo = push_section(
+                    &current_position,
+                    &current_forward,
+                    -1.0,
+                    1.0,
+                    current_length,
+                );
                 assert!(foo == 0);
             }
             RoadPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
                 current_position += current_forward * data.length;
-                let foo = push_section(&current_position, &current_forward, data.left, data.right);
+                current_length += data.length;
+                assert!(current_length != 0.0);
+                let foo = push_section(
+                    &current_position,
+                    &current_forward,
+                    data.left,
+                    data.right,
+                    current_length,
+                );
                 assert!(foo > 0);
             }
             RoadPiece::Corner(data) => {
@@ -295,25 +342,31 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
                     let pos = center - current_right * data.radius * f32::cos(ang)
                         + current_forward * f32::abs(data.radius) * f32::sin(ang);
                     let fwd = Quat::from_axis_angle(initial_up, sign * ang) * current_forward;
-                    let foo = push_section(&pos, &fwd, data.left, data.right);
+                    let len = f32::abs(data.radius) * ang + current_length;
+                    let foo = push_section(&pos, &fwd, data.left, data.right, len);
                     assert!(foo > 0);
                 }
                 current_position += current_forward * f32::abs(data.radius);
                 current_forward =
                     Quat::from_axis_angle(initial_up, sign * data.angle) * current_forward;
                 current_position += current_forward * data.radius;
+                current_length += f32::abs(data.radius) * data.angle;
             }
             RoadPiece::Finish => {
                 let pos_error = (current_position - initial_position).norm();
                 let dir_error = (current_forward - initial_forward).norm();
+                let is_looping: bool = pos_error < 1e-3 && dir_error < 1e-3;
                 debug!(
-                    "Finish {:?} {:0.3e} {:0.3e}",
+                    "Finish {:?} pos_err {:0.3e} dir_err {:0.3e} total_length {} loop {}",
                     current_position.clone(),
                     pos_error,
                     dir_error,
+                    current_length,
+                    is_looping,
                 );
-                assert!(pos_error < 1e-3);
-                assert!(dir_error < 1e-3);
+                if !is_looping {
+                    warn!("!!! road is not looping !!!");
+                }
             }
         }
         //     push_road(piece);
@@ -321,8 +374,8 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
 
     assert!(mesh_triangles.len() % 3 == 0);
     info!("num_vertices {}", mesh_positions.len());
-    // info!("{:?}", mesh_positions);
     info!("num_triangles {}", mesh_triangles.len() / 3);
+    info!("total_length {}", current_length);
 
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
@@ -332,6 +385,7 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_positions);
     mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
+    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh_uvs);
 
     mesh
 }
