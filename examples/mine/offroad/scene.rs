@@ -1,7 +1,5 @@
 use bevy::prelude::{Assets, Commands, Res, ResMut};
 
-use bevy::color::palettes::basic::SILVER;
-
 pub fn populate_background(
     mut commands: Commands,
     mut meshes: ResMut<Assets<bevy::render::mesh::Mesh>>,
@@ -9,6 +7,7 @@ pub fn populate_background(
     mut materials: ResMut<Assets<bevy::pbr::StandardMaterial>>,
     asset_server: Res<bevy::asset::AssetServer>,
 ) {
+    use bevy::color::palettes::basic::SILVER;
     use bevy::prelude::*;
 
     info!("** populate_background **");
@@ -41,7 +40,7 @@ pub fn populate_background(
     ));
 
     // parallal
-    let parallal_material = materials.add(make_parallax_material(asset_server));
+    let parallal_material = materials.add(make_parallax_material(asset_server, 2.0));
     commands.spawn((
         Mesh3d(
             meshes.add(
@@ -96,9 +95,10 @@ pub fn populate_camera_and_lights(mut commands: Commands) {
     ));
 }
 
-fn make_parallax_material(
+pub fn make_parallax_material(
     // mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<bevy::asset::AssetServer>,
+    scale: f32,
 ) -> bevy::pbr::StandardMaterial {
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
@@ -157,7 +157,7 @@ fn make_parallax_material(
         parallax_depth_scale: 0.1,
         max_parallax_layer_count: 32.0,
         parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 16 },
-        uv_transform: Affine2::from_scale(Vec2::ONE * 2.0),
+        uv_transform: Affine2::from_scale(Vec2::ONE * scale),
         ..bevy::pbr::StandardMaterial::default()
     }
 }

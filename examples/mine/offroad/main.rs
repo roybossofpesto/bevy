@@ -1,12 +1,7 @@
 //! offroad ftw
 
-use bevy::prelude::*;
-
 // use bevy::color::palettes::basic::RED;
-use bevy::color::palettes::basic::BLUE;
-use bevy::math::Affine2;
-use bevy::pbr::DirectionalLightShadowMap;
-use bevy::pbr::UvChannel;
+// use bevy::color::palettes::basic::BLUE;
 
 use bevy::image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
 
@@ -15,13 +10,15 @@ use std::f32::consts::PI;
 mod scene;
 mod track;
 
-use scene::{populate_background, populate_camera_and_lights};
+use scene::{make_parallax_material, populate_background, populate_camera_and_lights};
 use track::{make_track_mesh, TRACK0_DATA, TRACK1_DATA};
+
+use bevy::prelude::*;
 
 fn main() {
     let mut app = App::new();
 
-    app.insert_resource(DirectionalLightShadowMap { size: 2048 });
+    app.insert_resource(bevy::pbr::DirectionalLightShadowMap { size: 2048 });
     app.add_plugins(DefaultPlugins);
 
     #[cfg(feature = "bevy_dev_tools")]
@@ -71,6 +68,9 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
+    use bevy::math::Affine2;
+    use bevy::pbr::UvChannel;
+
     info!("** setup **");
 
     // track 0 showcases flow parametrization
@@ -122,13 +122,11 @@ fn setup(
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
 
-    // track2 showcases water effect
+    // track2 showcases parallax effect
+    let track2_material = materials.add(make_parallax_material(asset_server, 0.3));
     commands.spawn((
         Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::from(BLUE),
-            ..default()
-        })),
+        MeshMaterial3d(track2_material),
         Transform::from_xyz(11.0, 0.0, 10.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 3.0)),
     ));
