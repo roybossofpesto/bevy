@@ -1,7 +1,8 @@
+use bevy::prelude::Vec3Swizzles;
 use bevy::prelude::{debug, info, warn};
 
 use bevy::math::NormedVectorSpace;
-use bevy::math::{Vec2, Vec3};
+use bevy::math::{Mat3, Quat, Vec2, Vec3};
 
 use std::f32::consts::PI;
 
@@ -84,8 +85,6 @@ pub struct TrackData {
 }
 
 pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
-    use bevy::prelude::Quat;
-
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -100,16 +99,17 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
         _ => assert!(false, "!!! last piece should be a finish !!!"),
     }
 
-    let up = track_data.initial_up;
+    let initial_righthand = track_data.initial_forward.cross(track_data.initial_up);
 
     let mut mesh_positions: Vec<Vec3> = vec![];
     let mut mesh_normals: Vec<Vec3> = vec![];
     let mut mesh_triangles: Vec<u32> = vec![];
     let mut mesh_uvs: Vec<Vec2> = vec![];
+    let mut mesh_pqs: Vec<Vec2> = vec![];
     let mut push_section =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
-            let left_pos = position + forward.cross(up) * left;
-            let right_pos = position + forward.cross(up) * right;
+            let left_pos = position + forward.cross(track_data.initial_up) * left;
+            let right_pos = position + forward.cross(track_data.initial_up) * right;
             let next_vertex = mesh_positions.len() as u32;
             let num_segments = track_data.num_segments;
             assert!(next_vertex % (num_segments + 1) == 0);
@@ -118,10 +118,15 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                 assert!(aa >= 0.0);
                 assert!(aa <= 1.0);
                 let pos = aa * right_pos + (1.0 - aa) * left_pos;
-                let uu = aa * right + (1.0 - aa) * left;
+                let uv = Vec2::new(aa * right + (1.0 - aa) * left, length);
+                let proj =
+                    Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO);
+                let pq = proj * (pos - track_data.initial_position);
+                assert!(f32::abs(pq.z) < 1e-5);
                 mesh_positions.push(pos);
-                mesh_normals.push(up);
-                mesh_uvs.push(Vec2::new(uu, length));
+                mesh_normals.push(track_data.initial_up);
+                mesh_uvs.push(uv);
+                mesh_pqs.push(pq.xy());
             }
             if next_vertex != 0 {
                 assert!(next_vertex >= (num_segments + 1));
@@ -189,21 +194,24 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);
                 assert!(current_left < current_right);
                 assert!(data.num_quads > 0);
-                let current_righthand = current_forward.cross(up);
+                let current_righthand = current_forward.cross(track_data.initial_up);
                 let center = current_position + current_righthand * data.radius;
                 let sign: f32 = if data.radius < 0.0 { 1.0 } else { -1.0 };
                 for kk in 0..data.num_quads {
-                    let ang = (kk + 1) as f32 / data.num_quads as f32 * data.angle;
-                    let pos = center - current_righthand * data.radius * f32::cos(ang)
-                        + current_forward * f32::abs(data.radius) * f32::sin(ang);
-                    let fwd = Quat::from_axis_angle(up, sign * ang) * current_forward;
-                    let len = f32::abs(data.radius) * ang + current_length;
+                    let angle = (kk + 1) as f32 / data.num_quads as f32 * data.angle;
+                    let pos = center + current_forward * f32::abs(data.radius) * f32::sin(angle)
+                        - current_righthand * data.radius * f32::cos(angle);
+                    let quat = Quat::from_axis_angle(track_data.initial_up, sign * angle);
+                    let fwd = quat * current_forward;
+                    let len = f32::abs(data.radius) * angle + current_length;
                     let foo = push_section(&pos, &fwd, current_left, current_right, len);
                     assert!(foo > 0);
                 }
-                current_position = center - current_righthand * data.radius * f32::cos(data.angle)
-                    + current_forward * f32::abs(data.radius) * f32::sin(data.angle);
-                current_forward = Quat::from_axis_angle(up, sign * data.angle) * current_forward;
+                current_position = center
+                    + current_forward * f32::abs(data.radius) * f32::sin(data.angle)
+                    - current_righthand * data.radius * f32::cos(data.angle);
+                let quat = Quat::from_axis_angle(track_data.initial_up, sign * data.angle);
+                current_forward = quat * current_forward;
                 current_length += f32::abs(data.radius) * data.angle;
                 assert!(current_length != 0.0);
             }
@@ -213,8 +221,11 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                 let left_error = f32::abs(current_left - track_data.initial_left);
                 let right_error = f32::abs(current_left - track_data.initial_left);
                 let eps: f32 = 1e-3;
-                is_looping =
-                    pos_error < eps && dir_error < eps && left_error < eps && right_error < eps;
+                is_looping = pos_error < eps
+                    && dir_error < eps
+                    && left_error < eps
+                    && right_error < eps
+                    && current_length > 0.0;
                 debug!(
                     "Finish {:?} pos_err {:0.3e} dir_err {:0.3e} total_length {} loop {}",
                     current_position.clone(),
@@ -249,6 +260,7 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh_uvs);
+    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, mesh_pqs);
 
     mesh
 }
