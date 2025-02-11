@@ -25,11 +25,20 @@ fn main() {
 
     #[cfg(feature = "bevy_dev_tools")]
     {
+        // fps overlay
+        use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
+        use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
+        app.add_plugins(FpsOverlayPlugin {
+            config: FpsOverlayConfig::default(),
+        });
+    }
+
+    #[cfg(feature = "bevy_dev_tools")]
+    {
+        // wireframe toggle
         use bevy::color::palettes::basic::WHITE;
         use bevy::pbr::wireframe::WireframeConfig;
         use bevy::pbr::wireframe::WireframePlugin;
-
-        // wireframe
         app.insert_resource(WireframeConfig {
             global: false,
             default_color: WHITE.into(),
