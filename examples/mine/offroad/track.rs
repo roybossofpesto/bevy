@@ -1,10 +1,10 @@
 use bevy::prelude::{debug, info, warn};
 
 use bevy::math::NormedVectorSpace;
+use bevy::math::{Vec2, Vec3};
 
 use std::f32::consts::PI;
 
-#[derive(Debug)]
 pub enum TrackPiece {
     Start,
     Straight(StraightData),
@@ -65,19 +65,22 @@ impl CornerData {
     }
 }
 
-pub fn make_track_mesh(pieces: &[TrackPiece]) -> bevy::render::mesh::Mesh {
+pub struct TrackData {
+    pieces: &'static [TrackPiece],
+    initial_position: Vec3,
+    initial_forward: Vec3,
+    initial_up: Vec3,
+}
+
+pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     use bevy::prelude::Quat;
-    use bevy::prelude::Vec2;
-    use bevy::prelude::Vec3;
 
     use bevy::render::mesh::Indices;
     use bevy::render::mesh::Mesh;
     use bevy::render::render_asset::RenderAssetUsages;
     use bevy::render::render_resource::PrimitiveTopology;
 
-    let initial_position = Vec3::new(-10.0, 0.25, 0.0);
-    let initial_forward = Vec3::Z;
-    let initial_up = Vec3::Y;
+    let up = track_data.initial_up;
 
     let mut mesh_positions: Vec<Vec3> = vec![];
     let mut mesh_normals: Vec<Vec3> = vec![];
@@ -86,14 +89,14 @@ pub fn make_track_mesh(pieces: &[TrackPiece]) -> bevy::render::mesh::Mesh {
 
     let mut push_section =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
-            let left_pos = position + forward.cross(initial_up) * left;
-            let right_pos = position + forward.cross(initial_up) * right;
+            let left_pos = position + forward.cross(up) * left;
+            let right_pos = position + forward.cross(up) * right;
             let next_vertex = mesh_positions.len() as u32;
             assert!(next_vertex % 2 == 0);
             mesh_positions.push(left_pos);
             mesh_positions.push(right_pos);
-            mesh_normals.push(initial_up);
-            mesh_normals.push(initial_up);
+            mesh_normals.push(up);
+            mesh_normals.push(up);
             mesh_uvs.push(Vec2::new(left, length));
             mesh_uvs.push(Vec2::new(right, length));
             if next_vertex >= 2 {
@@ -105,12 +108,11 @@ pub fn make_track_mesh(pieces: &[TrackPiece]) -> bevy::render::mesh::Mesh {
             next_vertex
         };
 
-    let mut current_position = initial_position.clone();
-    let mut current_forward = initial_forward.clone();
-    // let current_up = initial_up.clone();
+    let mut current_position = track_data.initial_position.clone();
+    let mut current_forward = track_data.initial_forward.clone();
     let mut current_length: f32 = 0.0;
 
-    for piece in pieces {
+    for piece in track_data.pieces {
         match piece {
             TrackPiece::Start => {
                 debug!("Start {:?}", current_position.clone());
@@ -141,27 +143,26 @@ pub fn make_track_mesh(pieces: &[TrackPiece]) -> bevy::render::mesh::Mesh {
             TrackPiece::Corner(data) => {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);
                 assert!(data.num_quads > 0);
-                let current_right = current_forward.cross(initial_up);
+                let current_right = current_forward.cross(up);
                 let center = current_position + current_right * data.radius;
                 let sign: f32 = if data.radius < 0.0 { 1.0 } else { -1.0 };
                 for kk in 0..data.num_quads {
                     let ang = (kk + 1) as f32 / data.num_quads as f32 * data.angle;
                     let pos = center - current_right * data.radius * f32::cos(ang)
                         + current_forward * f32::abs(data.radius) * f32::sin(ang);
-                    let fwd = Quat::from_axis_angle(initial_up, sign * ang) * current_forward;
+                    let fwd = Quat::from_axis_angle(up, sign * ang) * current_forward;
                     let len = f32::abs(data.radius) * ang + current_length;
                     let foo = push_section(&pos, &fwd, data.left, data.right, len);
                     assert!(foo > 0);
                 }
                 current_position += current_forward * f32::abs(data.radius);
-                current_forward =
-                    Quat::from_axis_angle(initial_up, sign * data.angle) * current_forward;
+                current_forward = Quat::from_axis_angle(up, sign * data.angle) * current_forward;
                 current_position += current_forward * data.radius;
                 current_length += f32::abs(data.radius) * data.angle;
             }
             TrackPiece::Finish => {
-                let pos_error = (current_position - initial_position).norm();
-                let dir_error = (current_forward - initial_forward).norm();
+                let pos_error = (current_position - track_data.initial_position).norm();
+                let dir_error = (current_forward - track_data.initial_forward).norm();
                 let is_looping: bool = pos_error < 1e-3 && dir_error < 1e-3;
                 debug!(
                     "Finish {:?} pos_err {:0.3e} dir_err {:0.3e} total_length {} loop {}",
@@ -197,7 +198,7 @@ pub fn make_track_mesh(pieces: &[TrackPiece]) -> bevy::render::mesh::Mesh {
     mesh
 }
 
-pub static TRACK0_PIECES: [TrackPiece; 15] = [
+static TRACK0_PIECES: [TrackPiece; 15] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
@@ -214,3 +215,10 @@ pub static TRACK0_PIECES: [TrackPiece; 15] = [
     TrackPiece::Straight(StraightData::from_length(4.0)),
     TrackPiece::Finish,
 ];
+
+pub static TRACK0_DATA: TrackData = TrackData {
+    pieces: &TRACK0_PIECES,
+    initial_position: Vec3::new(-10.0, 0.25, 0.0),
+    initial_forward: Vec3::Z,
+    initial_up: Vec3::Y,
+};
