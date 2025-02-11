@@ -222,3 +222,23 @@ pub static TRACK0_DATA: TrackData = TrackData {
     initial_forward: Vec3::Z,
     initial_up: Vec3::Y,
 };
+
+static TRACK1_PIECES: [TrackPiece; 10] = [
+    TrackPiece::Start,
+    TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Finish,
+];
+
+pub static TRACK1_DATA: TrackData = TrackData {
+    pieces: &TRACK1_PIECES,
+    initial_position: Vec3::new(2.0, 1.25, -5.0),
+    initial_forward: Vec3::new(-1.0, 0.0, 0.0),
+    initial_up: Vec3::Z,
+};

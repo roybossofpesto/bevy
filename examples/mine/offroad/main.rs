@@ -15,7 +15,7 @@ mod scene;
 mod track;
 
 use scene::{make_cube_mesh, make_uv_debug_texture};
-use track::{make_track_mesh, TRACK0_DATA};
+use track::{make_track_mesh, TRACK0_DATA, TRACK1_DATA};
 
 fn main() {
     let mut app = App::new();
@@ -115,6 +115,10 @@ fn setup(
     });
     commands.spawn((
         Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA))),
+        MeshMaterial3d(track_material.clone()),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
         MeshMaterial3d(track_material),
     ));
 
