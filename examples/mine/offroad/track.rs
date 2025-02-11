@@ -111,7 +111,7 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     let mut current_position = track_data.initial_position.clone();
     let mut current_forward = track_data.initial_forward.clone();
     let mut current_length: f32 = 0.0;
-
+    let mut is_looping: bool = false;
     for piece in track_data.pieces {
         match piece {
             TrackPiece::Start => {
@@ -163,7 +163,7 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
             TrackPiece::Finish => {
                 let pos_error = (current_position - track_data.initial_position).norm();
                 let dir_error = (current_forward - track_data.initial_forward).norm();
-                let is_looping: bool = pos_error < 1e-3 && dir_error < 1e-3;
+                is_looping = pos_error < 1e-3 && dir_error < 1e-3;
                 debug!(
                     "Finish {:?} pos_err {:0.3e} dir_err {:0.3e} total_length {} loop {}",
                     current_position.clone(),
@@ -172,9 +172,6 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                     current_length,
                     is_looping,
                 );
-                if !is_looping {
-                    warn!("!!! road is not looping !!!");
-                }
             }
         }
         //     push_road(piece);
@@ -184,6 +181,9 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     info!("num_vertices {}", mesh_positions.len());
     info!("num_triangles {}", mesh_triangles.len() / 3);
     info!("total_length {}", current_length);
+    if !is_looping {
+        warn!("!!! road is not looping !!!");
+    }
 
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
