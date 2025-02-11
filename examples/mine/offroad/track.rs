@@ -287,7 +287,7 @@ static TRACK0_PIECES: [TrackPiece; 15] = [
 
 pub static TRACK0_DATA: TrackData = TrackData {
     pieces: &TRACK0_PIECES,
-    initial_position: Vec3::new(-12.0, 0.25, 0.0),
+    initial_position: Vec3::new(-12.0, 0.0, 0.0),
     initial_forward: Vec3::Z,
     initial_up: Vec3::Y,
     initial_left: -1.0,
@@ -313,7 +313,7 @@ static TRACK1_PIECES: [TrackPiece; 13] = [
 
 pub static TRACK1_DATA: TrackData = TrackData {
     pieces: &TRACK1_PIECES,
-    initial_position: Vec3::new(1.0, 2.25, 0.0),
+    initial_position: Vec3::new(1.0, 2.0, 0.0),
     initial_forward: Vec3::new(-1.0, 0.0, 0.0),
     initial_up: Vec3::Z,
     initial_left: -2.0,

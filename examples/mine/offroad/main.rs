@@ -127,8 +127,8 @@ fn setup(
     commands.spawn((
         Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
         MeshMaterial3d(track2_material),
-        Transform::from_xyz(11.0, 0.0, 10.0)
-            .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 3.0)),
+        Transform::from_xyz(12.0, 0.0, 10.0)
+            .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
     ));
 
     // "textures/BlueNoise-Normal.png",
