@@ -33,12 +33,24 @@ impl StraightData {
             ..StraightData::default()
         }
     }
+    const fn from_left_right(left: f32, right: f32) -> Self {
+        Self {
+            left,
+            right,
+            ..StraightData::default()
+        }
+    }
+    const fn from_left_right_length(left: f32, right: f32, length: f32) -> Self {
+        Self {
+            left,
+            right,
+            length,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct CornerData {
-    left: f32,
-    right: f32,
     radius: f32,
     angle: f32,
     num_quads: u32,
@@ -47,8 +59,6 @@ pub struct CornerData {
 impl CornerData {
     const fn right_turn() -> Self {
         Self {
-            left: -1.0,
-            right: 1.0,
             radius: 2.0,
             angle: PI / 2.0,
             num_quads: 8,
@@ -56,8 +66,6 @@ impl CornerData {
     }
     const fn left_turn() -> Self {
         Self {
-            left: -1.0,
-            right: 1.0,
             radius: -2.0,
             angle: PI / 2.0,
             num_quads: 8,
@@ -70,15 +78,12 @@ pub struct TrackData {
     initial_position: Vec3,
     initial_forward: Vec3,
     initial_up: Vec3,
+    initial_left: f32,
+    initial_right: f32,
 }
 
 pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     use bevy::prelude::Quat;
-
-    use bevy::render::mesh::Indices;
-    use bevy::render::mesh::Mesh;
-    use bevy::render::render_asset::RenderAssetUsages;
-    use bevy::render::render_resource::PrimitiveTopology;
 
     let up = track_data.initial_up;
 
@@ -112,16 +117,21 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     let mut current_forward = track_data.initial_forward.clone();
     let mut current_length: f32 = 0.0;
     let mut is_looping: bool = false;
+    let mut current_left: f32 = track_data.initial_left;
+    let mut current_right: f32 = track_data.initial_right;
     for piece in track_data.pieces {
         match piece {
             TrackPiece::Start => {
                 debug!("Start {:?}", current_position.clone());
                 assert!(current_length == 0.0);
+                assert!(current_left == track_data.initial_left);
+                assert!(current_right == track_data.initial_right);
+                assert!(current_left < current_right);
                 let foo = push_section(
                     &current_position,
                     &current_forward,
-                    -1.0,
-                    1.0,
+                    current_left,
+                    current_right,
                     current_length,
                 );
                 assert!(foo == 0);
@@ -131,39 +141,49 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                 current_position += current_forward * data.length;
                 current_length += data.length;
                 assert!(current_length != 0.0);
+                assert!(current_left < current_right);
+                current_left = data.left;
+                current_right = data.right;
+                assert!(current_left < current_right);
                 let foo = push_section(
                     &current_position,
                     &current_forward,
-                    data.left,
-                    data.right,
+                    current_left,
+                    current_right,
                     current_length,
                 );
                 assert!(foo > 0);
             }
             TrackPiece::Corner(data) => {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);
+                assert!(current_left < current_right);
                 assert!(data.num_quads > 0);
-                let current_right = current_forward.cross(up);
-                let center = current_position + current_right * data.radius;
+                let current_righthand = current_forward.cross(up);
+                let center = current_position + current_righthand * data.radius;
                 let sign: f32 = if data.radius < 0.0 { 1.0 } else { -1.0 };
                 for kk in 0..data.num_quads {
                     let ang = (kk + 1) as f32 / data.num_quads as f32 * data.angle;
-                    let pos = center - current_right * data.radius * f32::cos(ang)
+                    let pos = center - current_righthand * data.radius * f32::cos(ang)
                         + current_forward * f32::abs(data.radius) * f32::sin(ang);
                     let fwd = Quat::from_axis_angle(up, sign * ang) * current_forward;
                     let len = f32::abs(data.radius) * ang + current_length;
-                    let foo = push_section(&pos, &fwd, data.left, data.right, len);
+                    let foo = push_section(&pos, &fwd, current_left, current_right, len);
                     assert!(foo > 0);
                 }
                 current_position += current_forward * f32::abs(data.radius);
                 current_forward = Quat::from_axis_angle(up, sign * data.angle) * current_forward;
                 current_position += current_forward * data.radius;
                 current_length += f32::abs(data.radius) * data.angle;
+                assert!(current_length != 0.0);
             }
             TrackPiece::Finish => {
                 let pos_error = (current_position - track_data.initial_position).norm();
                 let dir_error = (current_forward - track_data.initial_forward).norm();
-                is_looping = pos_error < 1e-3 && dir_error < 1e-3;
+                let left_error = f32::abs(current_left - track_data.initial_left);
+                let right_error = f32::abs(current_left - track_data.initial_left);
+                let eps: f32 = 1e-3;
+                is_looping =
+                    pos_error < eps && dir_error < eps && left_error < eps && right_error < eps;
                 debug!(
                     "Finish {:?} pos_err {:0.3e} dir_err {:0.3e} total_length {} loop {}",
                     current_position.clone(),
@@ -174,7 +194,6 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                 );
             }
         }
-        //     push_road(piece);
     }
 
     assert!(mesh_triangles.len() % 3 == 0);
@@ -184,6 +203,11 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     if !is_looping {
         warn!("!!! road is not looping !!!");
     }
+
+    use bevy::render::mesh::Indices;
+    use bevy::render::mesh::Mesh;
+    use bevy::render::render_asset::RenderAssetUsages;
+    use bevy::render::render_resource::PrimitiveTopology;
 
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
@@ -221,24 +245,31 @@ pub static TRACK0_DATA: TrackData = TrackData {
     initial_position: Vec3::new(-10.0, 0.25, 0.0),
     initial_forward: Vec3::Z,
     initial_up: Vec3::Y,
+    initial_left: -1.0,
+    initial_right: 1.0,
 };
 
-static TRACK1_PIECES: [TrackPiece; 10] = [
+static TRACK1_PIECES: [TrackPiece; 13] = [
     TrackPiece::Start,
-    TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Straight(StraightData::from_length(6.0)),
+    TrackPiece::Straight(StraightData::from_left_right(-1.0, 0.5)),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Straight(StraightData::from_length(2.0)),
+    TrackPiece::Straight(StraightData::from_left_right(-2.0, 1.0)),
+    TrackPiece::Straight(StraightData::from_left_right_length(-2.0, 1.0, 4.0)),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Straight(StraightData::from_left_right(-2.0, 1.0)),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Finish,
 ];
 
 pub static TRACK1_DATA: TrackData = TrackData {
     pieces: &TRACK1_PIECES,
-    initial_position: Vec3::new(2.0, 1.25, -5.0),
+    initial_position: Vec3::new(2.0, 2.25, -5.0),
     initial_forward: Vec3::new(-1.0, 0.0, 0.0),
     initial_up: Vec3::Z,
+    initial_left: -2.0,
+    initial_right: 1.0,
 };
