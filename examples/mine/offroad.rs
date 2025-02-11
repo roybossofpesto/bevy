@@ -2,7 +2,9 @@
 
 use bevy::prelude::*;
 
+// use bevy::color::palettes::basic::RED;
 use bevy::color::palettes::basic::SILVER;
+use bevy::pbr::DirectionalLightShadowMap;
 use bevy::render::camera::ScalingMode;
 
 use bevy::render::mesh::Indices;
@@ -12,8 +14,12 @@ use bevy::render::render_resource::PrimitiveTopology;
 use bevy::render::render_resource::TextureDimension;
 use bevy::render::render_resource::TextureFormat;
 
+// use std::f32::consts::PI;
+
 fn main() {
     let mut app = App::new();
+
+    app.insert_resource(DirectionalLightShadowMap { size: 2048 });
 
     app.add_plugins(DefaultPlugins);
 
@@ -31,17 +37,18 @@ fn setup(
 ) {
     info!("coucou");
 
+    // tower
     let debug_material = materials.add(StandardMaterial {
         base_color_texture: Some(images.add(make_uv_debug_texture())),
         ..default()
     });
-
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))),
         MeshMaterial3d(debug_material),
         Transform::from_xyz(0.0, 3.0, 0.0),
     ));
 
+    // cube
     commands.spawn((
         Mesh3d(meshes.add(make_cube_mesh())),
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -57,15 +64,25 @@ fn setup(
         MeshMaterial3d(materials.add(Color::from(SILVER))),
     ));
 
+    // lights
     commands.spawn((
         PointLight {
             shadows_enabled: true,
-            intensity: 10_000_000.,
+            intensity: 1.0e6,
             range: 100.0,
             shadow_depth_bias: 0.2,
             ..default()
         },
         Transform::from_xyz(8.0, 16.0, 8.0),
+    ));
+    commands.spawn((
+        DirectionalLight {
+            color: Color::WHITE,
+            shadows_enabled: true,
+            illuminance: light_consts::lux::CLEAR_SUNRISE,
+            ..default()
+        },
+        Transform::from_translation(Vec3::Y).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
     commands.spawn((
