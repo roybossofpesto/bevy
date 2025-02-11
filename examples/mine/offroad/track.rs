@@ -80,10 +80,14 @@ pub struct TrackData {
     initial_up: Vec3,
     initial_left: f32,
     initial_right: f32,
+    num_segments: u32,
 }
 
 pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     use bevy::prelude::Quat;
+
+    assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
+    assert!(track_data.num_segments > 0);
 
     let up = track_data.initial_up;
 
@@ -97,18 +101,35 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
             let left_pos = position + forward.cross(up) * left;
             let right_pos = position + forward.cross(up) * right;
             let next_vertex = mesh_positions.len() as u32;
-            assert!(next_vertex % 2 == 0);
-            mesh_positions.push(left_pos);
-            mesh_positions.push(right_pos);
-            mesh_normals.push(up);
-            mesh_normals.push(up);
-            mesh_uvs.push(Vec2::new(left, length));
-            mesh_uvs.push(Vec2::new(right, length));
-            if next_vertex >= 2 {
-                let mut tri_aa = vec![next_vertex - 2, next_vertex - 1, next_vertex];
-                let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
-                mesh_triangles.append(&mut tri_aa);
-                mesh_triangles.append(&mut tri_bb);
+            let num_segments = track_data.num_segments;
+            assert!(next_vertex % (num_segments + 1) == 0);
+            for kk in 0..=num_segments {
+                let aa = kk as f32 / num_segments as f32;
+                assert!(aa >= 0.0);
+                assert!(aa <= 1.0);
+                let pos = aa * right_pos + (1.0 - aa) * left_pos;
+                let uu = aa * right + (1.0 - aa) * left;
+                mesh_positions.push(pos);
+                mesh_normals.push(up);
+                mesh_uvs.push(Vec2::new(uu, length));
+            }
+            if next_vertex != 0 {
+                assert!(next_vertex >= (num_segments + 1));
+                for kk in 0..num_segments {
+                    let mut tri_aa = vec![
+                        next_vertex + kk - num_segments - 1,
+                        next_vertex + kk - num_segments,
+                        next_vertex + kk,
+                    ];
+                    // let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
+                    let mut tri_bb = vec![
+                        next_vertex + kk - num_segments,
+                        next_vertex + kk + 1,
+                        next_vertex + kk,
+                    ];
+                    mesh_triangles.append(&mut tri_aa);
+                    mesh_triangles.append(&mut tri_bb);
+                }
             }
             next_vertex
         };
@@ -170,9 +191,9 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
                     let foo = push_section(&pos, &fwd, current_left, current_right, len);
                     assert!(foo > 0);
                 }
-                current_position += current_forward * f32::abs(data.radius);
+                current_position = center - current_righthand * data.radius * f32::cos(data.angle)
+                    + current_forward * f32::abs(data.radius) * f32::sin(data.angle);
                 current_forward = Quat::from_axis_angle(up, sign * data.angle) * current_forward;
-                current_position += current_forward * data.radius;
                 current_length += f32::abs(data.radius) * data.angle;
                 assert!(current_length != 0.0);
             }
@@ -226,11 +247,11 @@ static TRACK0_PIECES: [TrackPiece; 15] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
-    TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Straight(StraightData::from_length(6.0)),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(10.0)),
+    TrackPiece::Straight(StraightData::from_length(12.0)),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(12.0)),
     TrackPiece::Corner(CornerData::right_turn()),
@@ -247,6 +268,7 @@ pub static TRACK0_DATA: TrackData = TrackData {
     initial_up: Vec3::Y,
     initial_left: -1.0,
     initial_right: 1.0,
+    num_segments: 4,
 };
 
 static TRACK1_PIECES: [TrackPiece; 13] = [
@@ -272,4 +294,5 @@ pub static TRACK1_DATA: TrackData = TrackData {
     initial_up: Vec3::Z,
     initial_left: -2.0,
     initial_right: 1.0,
+    num_segments: 4,
 };
