@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy::color::palettes::basic::BLUE;
 use bevy::color::palettes::basic::SILVER;
 use bevy::color::palettes::basic::WHITE;
+use bevy::math::NormedVectorSpace;
 use bevy::pbr::wireframe::WireframeConfig;
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::pbr::DirectionalLightShadowMap;
@@ -60,7 +61,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    info!("coucou");
+    info!("** setup **");
 
     // ground plane
     commands.spawn((
@@ -273,18 +274,18 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
     for piece in pieces {
         match piece {
             RoadPiece::Start => {
-                info!("Start {:?}", current_position.clone());
+                debug!("Start {:?}", current_position.clone());
                 let foo = push_section(&current_position, &current_forward, -1.0, 1.0);
                 assert!(foo == 0);
             }
             RoadPiece::Straight(data) => {
-                info!("Straight {:?} {:?}", current_position.clone(), data);
+                debug!("Straight {:?} {:?}", current_position.clone(), data);
                 current_position += current_forward * data.length;
                 let foo = push_section(&current_position, &current_forward, data.left, data.right);
                 assert!(foo > 0);
             }
             RoadPiece::Corner(data) => {
-                info!("Corner {:?} {:?}", current_position.clone(), data);
+                debug!("Corner {:?} {:?}", current_position.clone(), data);
                 assert!(data.num_quads > 0);
                 let current_right = current_forward.cross(initial_up);
                 let center = current_position + current_right * data.radius;
@@ -294,7 +295,6 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
                     let pos = center - current_right * data.radius * f32::cos(ang)
                         + current_forward * f32::abs(data.radius) * f32::sin(ang);
                     let fwd = Quat::from_axis_angle(initial_up, sign * ang) * current_forward;
-                    // let fwd = current_forward;
                     let foo = push_section(&pos, &fwd, data.left, data.right);
                     assert!(foo > 0);
                 }
@@ -304,8 +304,16 @@ fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
                 current_position += current_forward * data.radius;
             }
             RoadPiece::Finish => {
-                info!("Finish {:?}", current_position.clone());
-                // push_section(-1.0, 1.0);
+                let pos_error = (current_position - initial_position).norm();
+                let dir_error = (current_forward - initial_forward).norm();
+                debug!(
+                    "Finish {:?} {:0.3e} {:0.3e}",
+                    current_position.clone(),
+                    pos_error,
+                    dir_error,
+                );
+                assert!(pos_error < 1e-3);
+                assert!(dir_error < 1e-3);
             }
         }
         //     push_road(piece);
