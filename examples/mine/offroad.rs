@@ -3,7 +3,11 @@
 use bevy::prelude::*;
 
 // use bevy::color::palettes::basic::RED;
+use bevy::color::palettes::basic::BLUE;
 use bevy::color::palettes::basic::SILVER;
+use bevy::color::palettes::basic::WHITE;
+use bevy::pbr::wireframe::WireframeConfig;
+use bevy::pbr::wireframe::WireframePlugin;
 use bevy::pbr::DirectionalLightShadowMap;
 use bevy::render::camera::ScalingMode;
 
@@ -13,6 +17,7 @@ use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::render::render_resource::TextureDimension;
 use bevy::render::render_resource::TextureFormat;
+// use bevy::render::mesh;
 
 // use std::f32::consts::PI;
 
@@ -20,10 +25,30 @@ fn main() {
     let mut app = App::new();
 
     app.insert_resource(DirectionalLightShadowMap { size: 2048 });
+    app.insert_resource(WireframeConfig {
+        // The global wireframe config enables drawing of wireframes on every mesh,
+        // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
+        // regardless of the global configuration.
+        global: true,
+        // Controls the default color of all wireframes. Used as the default color for global wireframes.
+        // Can be changed per mesh using the `WireframeColor` component.
+        default_color: WHITE.into(),
+    });
 
-    app.add_plugins(DefaultPlugins);
+    app.add_plugins((DefaultPlugins, WireframePlugin));
 
     app.add_systems(Startup, setup);
+
+    app.add_systems(
+        Update,
+        |mut wireframe_config: ResMut<WireframeConfig>,
+         keyboard: Res<ButtonInput<KeyCode>>|
+         -> () {
+            if keyboard.just_pressed(KeyCode::Space) {
+                wireframe_config.global = !wireframe_config.global;
+            }
+        },
+    );
 
     app.run();
 }
@@ -36,6 +61,12 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     info!("coucou");
+
+    // ground plane
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
+        MeshMaterial3d(materials.add(Color::from(SILVER))),
+    ));
 
     // tower
     let debug_material = materials.add(StandardMaterial {
@@ -58,10 +89,15 @@ fn setup(
         Transform::from_xyz(3.0, 3.0, 0.0),
     ));
 
-    // ground plane
+    // track
+    let pieces = vec![
+        RoadPiece::default(),
+        RoadPiece::straight(2.0),
+        RoadPiece::default(),
+    ];
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
-        MeshMaterial3d(materials.add(Color::from(SILVER))),
+        Mesh3d(meshes.add(make_road(&pieces))),
+        MeshMaterial3d(materials.add(Color::from(BLUE))),
     ));
 
     // lights
@@ -125,6 +161,89 @@ fn make_uv_debug_texture() -> Image {
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::RENDER_WORLD,
     )
+}
+
+#[derive(Debug)]
+struct RoadPiece {
+    left: f32,
+    right: f32,
+    length: f32,
+    // angle: f32,
+    num_quads: u32,
+}
+
+// impl Default for RoadPiece {}
+
+impl RoadPiece {
+    const fn default() -> Self {
+        Self {
+            left: -1.0,
+            right: 1.0,
+            length: 4.0,
+            // angle: 0.0,
+            num_quads: 8,
+        }
+    }
+    const fn straight(length: f32) -> Self {
+        Self {
+            left: -1.0,
+            right: 1.0,
+            length,
+            // angle: 0.0,
+            num_quads: 1,
+        }
+    }
+}
+
+fn make_road(pieces: &Vec<RoadPiece>) -> Mesh {
+    let mut mesh_positions: Vec<Vec3> = vec![];
+    let mut mesh_normals: Vec<Vec3> = vec![];
+    let mut mesh_triangles: Vec<u32> = vec![];
+
+    let mut current_position = Vec3::new(-10.0, 1.0e-2, 0.0);
+    let mut forward_direction = -Vec3::Z;
+    let up_direction = Vec3::Y;
+
+    let mut push_road = |piece: &RoadPiece| -> () {
+        info!("*** {:?} {:?}", current_position, piece);
+        assert!(piece.num_quads > 0);
+        for _ in 0..piece.num_quads {
+            let left_pos = current_position + forward_direction.cross(up_direction) * piece.left;
+            let right_pos = current_position + forward_direction.cross(up_direction) * piece.right;
+            let next_vertex = mesh_positions.len() as u32;
+            assert!(next_vertex % 2 == 0);
+            mesh_positions.push(left_pos);
+            mesh_positions.push(right_pos);
+            mesh_normals.push(up_direction);
+            mesh_normals.push(up_direction);
+            if next_vertex >= 2 {
+                let mut tri_aa = vec![next_vertex - 2, next_vertex - 1, next_vertex];
+                let mut tri_bb = vec![next_vertex - 1, next_vertex + 1, next_vertex];
+                mesh_triangles.append(&mut tri_aa);
+                mesh_triangles.append(&mut tri_bb);
+            }
+            current_position += forward_direction * piece.length / piece.num_quads as f32;
+        }
+    };
+
+    for piece in pieces {
+        push_road(piece);
+    }
+
+    assert!(mesh_triangles.len() % 3 == 0);
+    info!("num_vertices {}", mesh_positions.len());
+    info!("num_triangles {}", mesh_triangles.len() / 3);
+
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+
+    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_positions);
+    mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
+    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
+
+    mesh
 }
 
 #[rustfmt::skip]
