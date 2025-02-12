@@ -82,7 +82,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA, false))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA).0)),
         MeshMaterial3d(track0_material.clone()),
     ));
 
@@ -106,7 +106,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA, false))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA).0)),
         MeshMaterial3d(track1_material),
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
@@ -115,7 +115,7 @@ fn populate_tracks(
     let track2_material = materials.add(make_wavy_material(asset_server, 0.5));
     commands.spawn((
         TrackMarker,
-        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA, false))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA).0)),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
@@ -133,9 +133,10 @@ fn populate_track0_dots(
     use bevy::prelude::Transform;
 
     // track3 showcases custom shader
-    let track3_material = materials.add(make_custom_material(asset_server));
+    let track3_mesh = make_track_mesh(&TRACK0_DATA);
+    let track3_material = materials.add(make_custom_material(asset_server, track3_mesh.1));
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA, false))),
+        Mesh3d(meshes.add(track3_mesh.0)),
         MeshMaterial3d(track3_material),
         Transform::from_xyz(0.0, 1e-2, 0.0),
     ));
@@ -160,6 +161,8 @@ struct CustomMaterial {
     color: LinearRgba,
     #[uniform(3)]
     track_length: f32,
+    #[uniform(4)]
+    track_threshold: f32,
     alpha_mode: AlphaMode,
 }
 
@@ -175,14 +178,15 @@ impl bevy::prelude::Material for CustomMaterial {
     }
 }
 
-fn make_custom_material(asset_server: Res<AssetServer>) -> CustomMaterial {
+fn make_custom_material(asset_server: Res<AssetServer>, track_length: f32) -> CustomMaterial {
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
     use bevy::image::ImageSampler;
     use bevy::image::ImageSamplerDescriptor;
     CustomMaterial {
         // color_channel: UvChannel::Uv1,
-        track_length: 8.0,
+        track_length,
+        track_threshold: 8.0,
         color: LinearRgba::from(PURPLE),
         color_texture: Some(asset_server.load_with_settings(
             "branding/icon.png",
@@ -345,7 +349,7 @@ struct TrackData {
     num_segments: u32,
 }
 
-fn make_track_mesh(track_data: &TrackData, swap_uvs: bool) -> Mesh {
+fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -521,17 +525,17 @@ fn make_track_mesh(track_data: &TrackData, swap_uvs: bool) -> Mesh {
     mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
 
-    let mut channel_uvs = Mesh::ATTRIBUTE_UV_0;
-    let mut channel_pqs = Mesh::ATTRIBUTE_UV_1;
-    if swap_uvs {
-        std::mem::swap(&mut channel_uvs, &mut channel_pqs);
-    }
-    mesh = mesh.with_inserted_attribute(channel_uvs, mesh_uvs);
-    mesh = mesh.with_inserted_attribute(channel_pqs, mesh_pqs);
+    // let mut channel_uvs = Mesh::ATTRIBUTE_UV_0;
+    // let mut channel_pqs = Mesh::ATTRIBUTE_UV_1;
+    // if swap_uvs {
+    //     std::mem::swap(&mut channel_uvs, &mut channel_pqs);
+    // }
+    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh_uvs);
+    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, mesh_pqs);
 
     mesh = mesh.with_generated_tangents().unwrap();
 
-    mesh
+    (mesh, current_length, is_looping)
 }
 
 //////////////////////////////////////////////////////////////////////

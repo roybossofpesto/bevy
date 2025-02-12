@@ -5,7 +5,8 @@
 @group(2) @binding(0) var material_color_texture: texture_2d<f32>;
 @group(2) @binding(1) var material_color_sampler: sampler;
 @group(2) @binding(2) var<uniform> material_color: vec4<f32>;
-@group(2) @binding(3) var<uniform> marked_length: f32;
+@group(2) @binding(3) var<uniform> track_length: f32;
+@group(2) @binding(4) var<uniform> track_threshold: f32;
 
 @fragment
 fn fragment(
@@ -16,7 +17,11 @@ fn fragment(
     // return material_color * ;
     let aa = textureSample(material_color_texture, material_color_sampler, mesh.uv);
     var color = material_color * aa;
-    if mesh.uv.y < marked_length && color.w == 0 { color = vec4(1.0); }
-    if mesh.uv.x > 0.0 { color.w = 0.0; }
+    if mesh.uv.x < 0 { color = vec4(0.0); }
+    if mesh.uv.x < -0.8 { 
+        color = vec4(1.0);
+        if mesh.uv.y < track_length / 2.0 { color = vec4(0.0, 1.0, 0.0, 1.0); }
+        if mesh.uv.y < track_threshold { color = vec4(1.0, 0.0, 0.0, 1.0); }
+    }
     return color;
 }
