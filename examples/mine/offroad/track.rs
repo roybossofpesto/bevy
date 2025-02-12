@@ -52,7 +52,7 @@ fn populate_tracks(
     let track0_material = materials.add(StandardMaterial {
         base_color_channel: UvChannel::Uv0,
         base_color_texture: Some(asset_server.load_with_settings(
-            "textures/fantasy_ui_borders/panel-border-010-repeated.png",
+            "textures/fantasy_ui_borders/panel-border-010.png",
             |s: &mut _| {
                 *s = ImageLoaderSettings {
                     sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
@@ -76,6 +76,9 @@ fn populate_tracks(
     let track1_material = materials.add(StandardMaterial {
         base_color_channel: UvChannel::Uv1,
         base_color_texture: Some(asset_server.load_with_settings(
+            // "textures/parallax_example/cube_color.png",
+            // "textures/slice_square.png",
+            // "textures/fantasy_ui_borders/panel-border-015.png",
             "textures/uv_checker_bw.png",
             |s: &mut _| {
                 *s = ImageLoaderSettings {
@@ -129,7 +132,7 @@ fn populate_racing_lines(
 
     // track 4 showcases racing lines on track 0 data
     let track4_mesh = make_track_mesh(&TRACK1_DATA);
-    let track4_material = materials.add(make_racing_line_material(&asset_server, track3_mesh.1));
+    let track4_material = materials.add(make_racing_line_material(&asset_server, track4_mesh.1));
     commands.spawn((
         Mesh3d(meshes.add(track4_mesh.0)),
         MeshMaterial3d(track4_material),

@@ -15,8 +15,8 @@ fn fragment(
 ) -> @location(0) vec4<f32> {
     var color = vec4(0.0);
     if abs(mesh.uv.x) > 0.8 {
-        let foo = mesh.position.xy / 16.0;
-        // let foo = mesh.uv_b;
+        // let foo = mesh.position.xy / 16.0;
+        let foo = mesh.uv_b;
         let aa = textureSample(material_color_texture, material_color_sampler, foo);
         color = material_color * aa;
     }
