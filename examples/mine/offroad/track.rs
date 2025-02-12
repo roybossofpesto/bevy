@@ -1,15 +1,18 @@
-use bevy::asset::{AssetServer, Assets};
+use bevy::asset::{Asset, AssetServer, Assets};
 use bevy::math::NormedVectorSpace;
 use bevy::math::{Mat3, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
+use bevy::reflect::TypePath;
 use bevy::render::mesh::Mesh;
+use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 
 use bevy::prelude::Vec3Swizzles;
 use bevy::prelude::{debug, info, warn};
-use bevy::prelude::{Commands, Component, Query, Res, ResMut, Time, With};
+use bevy::prelude::{Commands, Component, Handle, Query, Res, ResMut, Time, With};
 use bevy::prelude::{Mesh3d, MeshMaterial3d};
 
 use bevy::color::palettes::basic::BLUE;
+use bevy::color::palettes::basic::PURPLE;
 use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
@@ -18,11 +21,15 @@ pub struct TrackPlugin;
 
 impl bevy::prelude::Plugin for TrackPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        use bevy::prelude::{Startup, Update};
+        use bevy::prelude::{MaterialPlugin, Startup, Update};
+        app.add_plugins(MaterialPlugin::<CustomMaterial>::default());
         app.add_systems(Startup, populate_tracks);
+        app.add_systems(Startup, populate_track0_dots);
         app.add_systems(Update, animate_track_materials);
     }
 }
+
+//////////////////////////////////////////////////////////////////////
 
 #[derive(Component)]
 struct TrackMarker;
@@ -75,7 +82,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA, false))),
         MeshMaterial3d(track0_material.clone()),
     ));
 
@@ -99,19 +106,38 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA, false))),
         MeshMaterial3d(track1_material),
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
 
-    // track2 showcases parallax effect
-    let track2_material = materials.add(make_track_material(asset_server, 0.5));
+    // track2 showcases water effect
+    let track2_material = materials.add(make_wavy_material(asset_server, 0.5));
     commands.spawn((
         TrackMarker,
-        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA, false))),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
+    ));
+}
+
+fn populate_track0_dots(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<CustomMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    info!("** populate_track_dots **");
+
+    use bevy::prelude::Transform;
+
+    // track3 showcases custom shader
+    let track3_material = materials.add(make_custom_material(asset_server));
+    commands.spawn((
+        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA, false))),
+        MeshMaterial3d(track3_material),
+        Transform::from_xyz(0.0, 1e-2, 0.0),
     ));
 
     // "textures/BlueNoise-Normal.png",
@@ -119,7 +145,65 @@ fn populate_tracks(
 
 //////////////////////////////////////////////////////////////////////
 
-fn make_track_material(asset_server: Res<AssetServer>, scale: f32) -> StandardMaterial {
+use bevy::prelude::AlphaMode;
+use bevy::prelude::LinearRgba;
+
+const SHADER_ASSET_PATH: &str = "shaders/dot_material.wgsl";
+
+// This struct defines the data that will be passed to your shader
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+struct CustomMaterial {
+    #[texture(0)]
+    #[sampler(1)]
+    color_texture: Option<Handle<bevy::image::Image>>,
+    #[uniform(2)]
+    color: LinearRgba,
+    #[uniform(3)]
+    track_length: f32,
+    alpha_mode: AlphaMode,
+}
+
+/// The Material trait is very configurable, but comes with sensible defaults for all methods.
+/// You only need to implement functions for features that need non-default behavior. See the Material api docs for details!
+impl bevy::prelude::Material for CustomMaterial {
+    fn fragment_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+
+    fn alpha_mode(&self) -> AlphaMode {
+        self.alpha_mode
+    }
+}
+
+fn make_custom_material(asset_server: Res<AssetServer>) -> CustomMaterial {
+    use bevy::image::ImageAddressMode;
+    use bevy::image::ImageLoaderSettings;
+    use bevy::image::ImageSampler;
+    use bevy::image::ImageSamplerDescriptor;
+    CustomMaterial {
+        // color_channel: UvChannel::Uv1,
+        track_length: 8.0,
+        color: LinearRgba::from(PURPLE),
+        color_texture: Some(asset_server.load_with_settings(
+            "branding/icon.png",
+            |settings: &mut ImageLoaderSettings| {
+                *settings = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..ImageSamplerDescriptor::default()
+                    }),
+                    ..ImageLoaderSettings::default()
+                }
+            },
+        )),
+        alpha_mode: AlphaMode::Blend,
+    }
+}
+
+//////////////////////////////////////////////////////////////////////
+
+fn make_wavy_material(asset_server: Res<AssetServer>, scale: f32) -> StandardMaterial {
     use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
@@ -261,7 +345,7 @@ struct TrackData {
     num_segments: u32,
 }
 
-fn make_track_mesh(track_data: &TrackData) -> Mesh {
+fn make_track_mesh(track_data: &TrackData, swap_uvs: bool) -> Mesh {
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -436,8 +520,14 @@ fn make_track_mesh(track_data: &TrackData) -> Mesh {
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_positions);
     mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
-    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh_uvs);
-    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, mesh_pqs);
+
+    let mut channel_uvs = Mesh::ATTRIBUTE_UV_0;
+    let mut channel_pqs = Mesh::ATTRIBUTE_UV_1;
+    if swap_uvs {
+        std::mem::swap(&mut channel_uvs, &mut channel_pqs);
+    }
+    mesh = mesh.with_inserted_attribute(channel_uvs, mesh_uvs);
+    mesh = mesh.with_inserted_attribute(channel_pqs, mesh_pqs);
 
     mesh = mesh.with_generated_tangents().unwrap();
 
