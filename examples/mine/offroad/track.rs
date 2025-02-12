@@ -26,6 +26,7 @@ impl bevy::prelude::Plugin for TrackPlugin {
         app.add_systems(Startup, populate_tracks);
         app.add_systems(Startup, populate_racing_lines);
         app.add_systems(Update, animate_wavy_materials);
+        app.add_systems(Update, animate_racing_line_materials);
     }
 }
 
@@ -158,6 +159,8 @@ struct RacingLineMaterial {
     track_length: f32,
     #[uniform(4)]
     line_width: f32,
+    #[uniform(5)]
+    time: f32,
     alpha_mode: AlphaMode,
 }
 
@@ -184,6 +187,7 @@ fn make_racing_line_material(
     RacingLineMaterial {
         track_length,
         line_width: 0.2,
+        time: 0.0,
         color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
             // "branding/icon.png",
@@ -201,6 +205,18 @@ fn make_racing_line_material(
             },
         )),
         alpha_mode: AlphaMode::Blend,
+    }
+}
+
+fn animate_racing_line_materials(
+    material_handles: Query<&MeshMaterial3d<RacingLineMaterial>>,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<RacingLineMaterial>>,
+) {
+    for material_handle in material_handles.iter() {
+        if let Some(material) = materials.get_mut(material_handle) {
+            material.time += time.delta_secs();
+        }
     }
 }
 

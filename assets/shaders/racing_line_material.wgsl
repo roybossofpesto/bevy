@@ -7,6 +7,7 @@
 @group(2) @binding(2) var<uniform> material_color: vec4<f32>;
 @group(2) @binding(3) var<uniform> track_length: f32;
 @group(2) @binding(4) var<uniform> line_width: f32;
+@group(2) @binding(5) var<uniform> time: f32;
 
 @fragment
 fn fragment(
@@ -21,7 +22,7 @@ fn fragment(
     }
     if abs(mesh.uv.x) < line_width / 2.0 { 
         color = vec4(1.0);
-        if fract(mesh.uv.y / track_length * 10.0) < 0.5 { color = vec4(0.0, 1.0, 0.0, 1.0); }
+        if fract(mesh.uv.y / track_length * 10.0 - time * 3.0) < 0.5 { color = vec4(0.0, 1.0, 0.0, 1.0); }
     }
     return color;
 }
