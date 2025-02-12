@@ -4,6 +4,7 @@
 // use bevy::color::palettes::basic::BLUE;
 
 mod scene;
+mod simu;
 mod track;
 
 use bevy::prelude::*;
@@ -49,6 +50,7 @@ fn main() {
 
     app.add_plugins(scene::ScenePlugin);
     app.add_plugins(track::TrackPlugin);
+    app.add_plugins(simu::SimuPlugin);
 
     app.run();
 }

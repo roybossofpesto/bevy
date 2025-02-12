@@ -574,9 +574,9 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
     }
 
     assert!(mesh_triangles.len() % 3 == 0);
-    info!("num_vertices {}", mesh_positions.len());
-    info!("num_triangles {}", mesh_triangles.len() / 3);
-    info!("total_length {}", current_length);
+    debug!("num_vertices {}", mesh_positions.len());
+    debug!("num_triangles {}", mesh_triangles.len() / 3);
+    debug!("total_length {}", current_length);
     if !is_looping {
         warn!("!!! road is not looping !!!");
     }
