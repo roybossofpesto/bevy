@@ -96,8 +96,7 @@ pub fn populate_camera_and_lights(mut commands: Commands) {
     ));
 }
 
-pub fn make_parallax_material(
-    // mut materials: ResMut<Assets<StandardMaterial>>,
+fn make_parallax_material(
     asset_server: Res<bevy::asset::AssetServer>,
     scale: f32,
 ) -> bevy::pbr::StandardMaterial {
@@ -108,17 +107,13 @@ pub fn make_parallax_material(
     use bevy::math::Affine2;
     use bevy::math::Vec2;
     use bevy::pbr::UvChannel;
-    use bevy::prelude::ParallaxMappingMethod;
     bevy::pbr::StandardMaterial {
         perceptual_roughness: 0.2,
-        normal_map_channel: UvChannel::Uv1,
-        normal_map_texture: Some(asset_server.load_with_settings(
-            "textures/parallax_example/cube_normal.png",
-            // The normal map texture is in linear color space. Lighting won't look correct
-            // if `is_srgb` is `true`, which is the default.
+        base_color_channel: UvChannel::Uv1,
+        base_color_texture: Some(asset_server.load_with_settings(
+            "textures/parallax_example/cube_color.png",
             |settings: &mut ImageLoaderSettings| {
                 *settings = ImageLoaderSettings {
-                    is_srgb: false,
                     sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
                         address_mode_u: ImageAddressMode::Repeat,
                         address_mode_v: ImageAddressMode::Repeat,
@@ -128,11 +123,14 @@ pub fn make_parallax_material(
                 }
             },
         )),
-        base_color_channel: UvChannel::Uv1,
-        base_color_texture: Some(asset_server.load_with_settings(
-            "textures/parallax_example/cube_color.png",
+        normal_map_channel: UvChannel::Uv1,
+        normal_map_texture: Some(asset_server.load_with_settings(
+            "textures/parallax_example/cube_normal.png",
+            // The normal map texture is in linear color space. Lighting won't look correct
+            // if `is_srgb` is `true`, which is the default.
             |settings: &mut ImageLoaderSettings| {
                 *settings = ImageLoaderSettings {
+                    is_srgb: false,
                     sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
                         address_mode_u: ImageAddressMode::Repeat,
                         address_mode_v: ImageAddressMode::Repeat,
@@ -156,8 +154,6 @@ pub fn make_parallax_material(
             },
         )),
         parallax_depth_scale: 0.1,
-        max_parallax_layer_count: 32.0,
-        parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 16 },
         uv_transform: Affine2::from_scale(Vec2::ONE * scale),
         ..bevy::pbr::StandardMaterial::default()
     }

@@ -10,8 +10,8 @@ use std::f32::consts::PI;
 mod scene;
 mod track;
 
-use scene::{make_parallax_material, populate_background, populate_camera_and_lights};
-use track::{make_track_mesh, TRACK0_DATA, TRACK1_DATA};
+use scene::{populate_background, populate_camera_and_lights};
+use track::{make_track_material, make_track_mesh, TRACK0_DATA, TRACK1_DATA};
 
 use bevy::prelude::*;
 
@@ -123,11 +123,11 @@ fn setup(
     ));
 
     // track2 showcases parallax effect
-    let track2_material = materials.add(make_parallax_material(asset_server, 0.3));
+    let track2_material = materials.add(make_track_material(asset_server, 0.3));
     commands.spawn((
         Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
         MeshMaterial3d(track2_material),
-        Transform::from_xyz(12.0, 0.0, 10.0)
+        Transform::from_xyz(12.0, 0.0, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
     ));
 
