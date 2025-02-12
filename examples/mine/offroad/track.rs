@@ -418,7 +418,8 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
                 let pos = aa * right_pos + (1.0 - aa) * left_pos;
                 let uv = Vec2::new(aa * right + (1.0 - aa) * left, length);
                 let proj =
-                    Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO);
+                    Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
+                        .transpose();
                 let pq = proj * (pos - track_data.initial_position);
                 assert!(f32::abs(pq.z) < 1e-5);
                 mesh_positions.push(pos);
