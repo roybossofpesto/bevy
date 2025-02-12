@@ -11,7 +11,6 @@ use bevy::prelude::*;
 
 const SHADER_ASSET_PATH: &str = "shaders/offroad/simu_compute.wgsl";
 const TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba32Float;
-// const DISPLAY_FACTOR: u32 = 4;
 const SIMU_SIZE: (u32, u32) = (64, 64);
 const WORKGROUP_SIZE: u32 = 8;
 
@@ -70,7 +69,7 @@ impl FromWorld for SimuPipeline {
                 ),
             ),
         );
-        let shader = world.load_asset(SHADER_ASSET_PATH);
+        let shader: Handle<Shader> = world.load_asset(SHADER_ASSET_PATH);
         let pipeline_cache = world.resource::<PipelineCache>();
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
@@ -170,7 +169,7 @@ impl bevy::render::render_graph::Node for SimuNode {
                         self.state = SimuState::Init;
                     }
                     CachedPipelineState::Err(err) => {
-                        panic!("Initializing assets \"{SHADER_ASSET_PATH}\"\n{err}")
+                        panic!("simu init pipeline\n{err}")
                     }
                     _ => {}
                 }
