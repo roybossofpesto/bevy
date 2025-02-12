@@ -160,7 +160,7 @@ fn populate_racing_lines(
 use bevy::prelude::AlphaMode;
 use bevy::prelude::LinearRgba;
 
-const SHADER_ASSET_PATH: &str = "shaders/racing_line_material.wgsl";
+const SHADER_ASSET_PATH: &str = "shaders/offroad/racing_line_material.wgsl";
 
 // This struct defines the data that will be passed to your shader
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]

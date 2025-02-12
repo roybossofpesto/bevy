@@ -9,7 +9,7 @@ use std::borrow::Cow;
 
 use bevy::prelude::*;
 
-const SHADER_ASSET_PATH: &str = "shaders/game_of_life.wgsl";
+const SHADER_ASSET_PATH: &str = "shaders/offroad/simu_compute.wgsl";
 // const DISPLAY_FACTOR: u32 = 4;
 const SIMU_SIZE: (u32, u32) = (64, 64);
 const WORKGROUP_SIZE: u32 = 8;
@@ -263,6 +263,8 @@ fn setup_simu(
     );
     image.texture_descriptor.usage =
         TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
+    image.sampler = bevy::image::ImageSampler::nearest();
+
     let image_a = images.add(image.clone());
     let image_b = images.add(image);
 
@@ -273,7 +275,7 @@ fn setup_simu(
             base_color_texture: Some(image_a.clone()),
             ..default()
         })),
-        Transform::from_xyz(2.0, 3.0, -6.0).with_scale(Vec3::ONE * 6.0),
+        Transform::from_xyz(-7.0, 3.0, -11.0).with_scale(Vec3::ONE * 6.0),
     ));
 
     commands.insert_resource(SimuImages { image_a, image_b });
