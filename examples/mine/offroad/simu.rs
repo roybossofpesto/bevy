@@ -10,6 +10,7 @@ use std::borrow::Cow;
 use bevy::prelude::*;
 
 const SHADER_ASSET_PATH: &str = "shaders/offroad/simu_compute.wgsl";
+const TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba32Float;
 // const DISPLAY_FACTOR: u32 = 4;
 const SIMU_SIZE: (u32, u32) = (64, 64);
 const WORKGROUP_SIZE: u32 = 8;
@@ -64,8 +65,8 @@ impl FromWorld for SimuPipeline {
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::COMPUTE,
                 (
-                    texture_storage_2d(TextureFormat::R32Float, StorageTextureAccess::ReadOnly),
-                    texture_storage_2d(TextureFormat::R32Float, StorageTextureAccess::WriteOnly),
+                    texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::ReadOnly),
+                    texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::WriteOnly),
                 ),
             ),
         );
@@ -258,7 +259,7 @@ fn setup_simu(
         },
         TextureDimension::D2,
         &[0, 0, 0, 255],
-        TextureFormat::R32Float,
+        TEXTURE_FORMAT,
         RenderAssetUsages::RENDER_WORLD,
     );
     image.texture_descriptor.usage =
