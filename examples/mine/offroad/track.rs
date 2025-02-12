@@ -12,7 +12,7 @@ use bevy::prelude::{Commands, Component, Handle, Query, Res, ResMut, Time, With}
 use bevy::prelude::{Mesh3d, MeshMaterial3d};
 
 use bevy::color::palettes::basic::BLUE;
-use bevy::color::palettes::basic::PURPLE;
+use bevy::color::palettes::basic::WHITE;
 use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
@@ -22,29 +22,14 @@ pub struct TrackPlugin;
 impl bevy::prelude::Plugin for TrackPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         use bevy::prelude::{MaterialPlugin, Startup, Update};
-        app.add_plugins(MaterialPlugin::<CustomMaterial>::default());
+        app.add_plugins(MaterialPlugin::<RacingLineMaterial>::default());
         app.add_systems(Startup, populate_tracks);
-        app.add_systems(Startup, populate_track0_dots);
-        app.add_systems(Update, animate_track_materials);
+        app.add_systems(Startup, populate_racing_lines);
+        app.add_systems(Update, animate_wavy_materials);
     }
 }
 
 //////////////////////////////////////////////////////////////////////
-
-#[derive(Component)]
-struct TrackMarker;
-
-fn animate_track_materials(
-    material_handles: Query<&MeshMaterial3d<StandardMaterial>, With<TrackMarker>>,
-    time: Res<Time>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    for material_handle in material_handles.iter() {
-        if let Some(material) = materials.get_mut(material_handle) {
-            material.uv_transform.translation.y += -0.8 * time.delta_secs();
-        }
-    }
-}
 
 fn populate_tracks(
     mut commands: Commands,
@@ -111,10 +96,10 @@ fn populate_tracks(
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
 
-    // track2 showcases water effect
+    // track 2 showcases water effect
     let track2_material = materials.add(make_wavy_material(asset_server, 0.5));
     commands.spawn((
-        TrackMarker,
+        WavyMarker,
         Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA).0)),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
@@ -122,23 +107,33 @@ fn populate_tracks(
     ));
 }
 
-fn populate_track0_dots(
+fn populate_racing_lines(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<CustomMaterial>>,
+    mut materials: ResMut<Assets<RacingLineMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
     info!("** populate_track_dots **");
 
     use bevy::prelude::Transform;
 
-    // track3 showcases custom shader
+    // track 3 showcases racing lines on track 0 data
     let track3_mesh = make_track_mesh(&TRACK0_DATA);
-    let track3_material = materials.add(make_custom_material(asset_server, track3_mesh.1));
+    let track3_material = materials.add(make_racing_line_material(&asset_server, track3_mesh.1));
     commands.spawn((
         Mesh3d(meshes.add(track3_mesh.0)),
         MeshMaterial3d(track3_material),
-        Transform::from_xyz(0.0, 1e-2, 0.0),
+        Transform::from_xyz(0.0, 1e-3, 0.0),
+    ));
+
+    // track 4 showcases racing lines on track 0 data
+    let track4_mesh = make_track_mesh(&TRACK1_DATA);
+    let track4_material = materials.add(make_racing_line_material(&asset_server, track3_mesh.1));
+    commands.spawn((
+        Mesh3d(meshes.add(track4_mesh.0)),
+        MeshMaterial3d(track4_material),
+        Transform::from_xyz(-1.0, 0.0, -2.0 + 1e-3),
+        // Transform::from_xyz(0.0, 1e-3, 0.0),
     ));
 
     // "textures/BlueNoise-Normal.png",
@@ -149,11 +144,11 @@ fn populate_track0_dots(
 use bevy::prelude::AlphaMode;
 use bevy::prelude::LinearRgba;
 
-const SHADER_ASSET_PATH: &str = "shaders/dot_material.wgsl";
+const SHADER_ASSET_PATH: &str = "shaders/racing_line_material.wgsl";
 
 // This struct defines the data that will be passed to your shader
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-struct CustomMaterial {
+struct RacingLineMaterial {
     #[texture(0)]
     #[sampler(1)]
     color_texture: Option<Handle<bevy::image::Image>>,
@@ -162,13 +157,13 @@ struct CustomMaterial {
     #[uniform(3)]
     track_length: f32,
     #[uniform(4)]
-    track_threshold: f32,
+    line_width: f32,
     alpha_mode: AlphaMode,
 }
 
 /// The Material trait is very configurable, but comes with sensible defaults for all methods.
 /// You only need to implement functions for features that need non-default behavior. See the Material api docs for details!
-impl bevy::prelude::Material for CustomMaterial {
+impl bevy::prelude::Material for RacingLineMaterial {
     fn fragment_shader() -> ShaderRef {
         SHADER_ASSET_PATH.into()
     }
@@ -178,18 +173,22 @@ impl bevy::prelude::Material for CustomMaterial {
     }
 }
 
-fn make_custom_material(asset_server: Res<AssetServer>, track_length: f32) -> CustomMaterial {
+fn make_racing_line_material(
+    asset_server: &Res<AssetServer>,
+    track_length: f32,
+) -> RacingLineMaterial {
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
     use bevy::image::ImageSampler;
     use bevy::image::ImageSamplerDescriptor;
-    CustomMaterial {
-        // color_channel: UvChannel::Uv1,
+    RacingLineMaterial {
         track_length,
-        track_threshold: 8.0,
-        color: LinearRgba::from(PURPLE),
+        line_width: 0.2,
+        color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
-            "branding/icon.png",
+            // "branding/icon.png",
+            // "textures/parallax_example/cube_color.png",
+            "textures/slice_square.png",
             |settings: &mut ImageLoaderSettings| {
                 *settings = ImageLoaderSettings {
                     sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
@@ -206,6 +205,9 @@ fn make_custom_material(asset_server: Res<AssetServer>, track_length: f32) -> Cu
 }
 
 //////////////////////////////////////////////////////////////////////
+
+#[derive(Component)]
+struct WavyMarker;
 
 fn make_wavy_material(asset_server: Res<AssetServer>, scale: f32) -> StandardMaterial {
     use bevy::color::Color;
@@ -266,6 +268,18 @@ fn make_wavy_material(asset_server: Res<AssetServer>, scale: f32) -> StandardMat
         parallax_depth_scale: 0.1,
         uv_transform: Affine2::from_scale(Vec2::ONE * scale),
         ..StandardMaterial::default()
+    }
+}
+
+fn animate_wavy_materials(
+    material_handles: Query<&MeshMaterial3d<StandardMaterial>, With<WavyMarker>>,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for material_handle in material_handles.iter() {
+        if let Some(material) = materials.get_mut(material_handle) {
+            material.uv_transform.translation.y += -0.8 * time.delta_secs();
+        }
     }
 }
 
