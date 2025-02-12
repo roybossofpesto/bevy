@@ -123,7 +123,7 @@ fn setup(
     ));
 
     // track2 showcases parallax effect
-    let track2_material = materials.add(make_track_material(asset_server, 0.3));
+    let track2_material = materials.add(make_track_material(asset_server, 0.5));
     commands.spawn((
         Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
         MeshMaterial3d(track2_material),

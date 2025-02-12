@@ -39,7 +39,7 @@ pub fn make_track_material(
         // )),
         normal_map_channel: UvChannel::Uv1,
         normal_map_texture: Some(asset_server.load_with_settings(
-            "textures/parallax_example/cube_normal.png",
+            "textures/wavy_normal.png",
             // The normal map texture is in linear color space. Lighting won't look correct
             // if `is_srgb` is `true`, which is the default.
             |settings: &mut ImageLoaderSettings| {
@@ -55,7 +55,7 @@ pub fn make_track_material(
             },
         )),
         depth_map: Some(asset_server.load_with_settings(
-            "textures/parallax_example/cube_depth.png",
+            "textures/wavy_depth.png",
             |settings: &mut ImageLoaderSettings| {
                 *settings = ImageLoaderSettings {
                     sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
