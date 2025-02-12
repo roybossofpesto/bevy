@@ -8,6 +8,7 @@ use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 
 use bevy::prelude::Vec3Swizzles;
 use bevy::prelude::{debug, info, warn};
+use bevy::prelude::{ButtonInput, KeyCode};
 use bevy::prelude::{Commands, Component, Handle, Query, Res, ResMut, Time, With};
 use bevy::prelude::{Mesh3d, MeshMaterial3d};
 
@@ -220,11 +221,26 @@ fn make_racing_line_material(
 fn animate_racing_line_materials(
     material_handles: Query<&MeshMaterial3d<RacingLineMaterial>>,
     time: Res<Time>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut materials: ResMut<Assets<RacingLineMaterial>>,
 ) {
+    let mut delta = Vec2::ZERO;
+    if keyboard.just_pressed(KeyCode::ArrowLeft) {
+        delta.x -= 1.0;
+    }
+    if keyboard.just_pressed(KeyCode::ArrowRight) {
+        delta.x += 1.0;
+    }
+    if keyboard.just_pressed(KeyCode::ArrowUp) {
+        delta.y += 1.0;
+    }
+    if keyboard.just_pressed(KeyCode::ArrowDown) {
+        delta.y -= 1.0;
+    }
     for material_handle in material_handles.iter() {
         if let Some(material) = materials.get_mut(material_handle) {
             material.time += time.delta_secs();
+            material.cursor_position += delta;
         }
     }
 }
