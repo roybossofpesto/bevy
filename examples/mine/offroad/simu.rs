@@ -4,6 +4,7 @@ use bevy::render::render_graph::{RenderGraph, RenderLabel};
 use bevy::render::render_resource::{binding_types::texture_storage_2d, *};
 use bevy::render::texture::GpuImage;
 use bevy::render::{Render, RenderApp, RenderSet};
+use bevy_render::render_resource::binding_types::uniform_buffer;
 
 use std::borrow::Cow;
 
@@ -56,6 +57,11 @@ struct SimuPipeline {
     update_pipeline: CachedComputePipelineId,
 }
 
+#[derive(ShaderType)]
+struct SimuSettings {
+    rng_seed: u32,
+}
+
 impl FromWorld for SimuPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<bevy::render::renderer::RenderDevice>();
@@ -66,6 +72,7 @@ impl FromWorld for SimuPipeline {
                 (
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::WriteOnly),
+                    uniform_buffer::<SimuSettings>(false),
                 ),
             ),
         );

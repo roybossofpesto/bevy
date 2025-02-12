@@ -4,11 +4,17 @@
 // Two textures are needed for the game of life as each pixel of step N depends on the state of its
 // neighbors at step N-1.
 
+
+struct Settings {
+    rng_seed: u32,
+}
+
 @group(0) @binding(0) var input: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(1) var output: texture_storage_2d<rgba32float, write>;
-@group(0) @binding(2) var<uniform> rng_offset: vec2<i32>;
+// @group(0) @binding(2) var<uniform> settings: Settings;
 
 fn hash(value: u32) -> u32 {
+    // var state = value + settings.rng_seed;
     var state = value;
     state = state ^ 2747636419u;
     state = state * 2654435769u;
@@ -112,13 +118,6 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     
         color.z = f32(next_alive);
     }
-
-   
-    // let color = vec4<f32>(f32(next_alive), f32(next_alive), f32(next_alive), 1.0);
-    // let color = vec4<uint8>(if alive { 255 } else {0});
-
-    // var color = vec4(0.0, 0.0, 0.0, 1.0);
-    // if is_alive(location,  0,  0) != 0 { color = vec4(1.0); }
 
     textureStore(output, location, color);
 }
