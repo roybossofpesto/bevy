@@ -20,11 +20,12 @@ if __name__ == "__main__":
         np.linspace(0.0, 1.0, resolution),
         np.linspace(0.0, 1.0, resolution),
     )
-    hhs = np.cos(10.0 * np.pi * xxs)
-    factor = 0.5
-    gxs = factor * np.sin(10.0 * np.pi * xxs)  # * 10.0 * np.pi
-    # gxs = np.zeros_like(hhs)
-    gys = np.zeros_like(gxs)
+    factor = 0.3
+    amplitude = 0.1
+    phis = 8.0 * np.pi * (xxs + amplitude * np.cos(2.0 * np.pi * yys))
+    hhs = np.cos(phis)
+    gxs = -np.sin(phis) * factor
+    gys = np.sin(phis) * amplitude * 2.0 * np.pi * -np.sin(2.0 * np.pi * yys) * factor
 
     assert (hhs >= -1.0).all()
     assert (hhs <= 1.0).all()
