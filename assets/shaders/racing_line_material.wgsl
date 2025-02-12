@@ -10,13 +10,14 @@
 @group(2) @binding(5) var<uniform> time: f32;
 @group(2) @binding(6) var<uniform> cursor_position: vec2<f32>;
 @group(2) @binding(7) var<uniform> cursor_radius: f32;
+@group(2) @binding(8) var<uniform> lateral_range: vec2<f32>;
 
 @fragment
 fn fragment(
     mesh: VertexOutput,
 ) -> @location(0) vec4<f32> {
     var color = vec4(0.0);
-    if abs(mesh.uv.x) > 0.8 {
+    if mesh.uv.x < lateral_range.x || mesh.uv.x > lateral_range.y {
         let aa = textureSample(material_color_texture, material_color_sampler, mesh.uv_b);
         color = material_color * aa;
     }

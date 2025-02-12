@@ -124,21 +124,32 @@ fn populate_racing_lines(
 
     // track 3 showcases racing lines on track 0 data
     let track3_mesh = make_track_mesh(&TRACK0_DATA);
-    let track3_material = materials.add(make_racing_line_material(&asset_server, track3_mesh.1));
+    let track3_material = make_racing_line_material(&asset_server, track3_mesh.1);
     commands.spawn((
         Mesh3d(meshes.add(track3_mesh.0)),
-        MeshMaterial3d(track3_material),
+        MeshMaterial3d(materials.add(track3_material)),
         Transform::from_xyz(0.0, 1e-3, 0.0),
     ));
 
-    // track 4 showcases racing lines on track 0 data
+    // track 4 showcases racing lines on track 1 data
     let track4_mesh = make_track_mesh(&TRACK1_DATA);
-    let track4_material = materials.add(make_racing_line_material(&asset_server, track4_mesh.1));
+    let track4_material = make_racing_line_material(&asset_server, track4_mesh.1);
     commands.spawn((
         Mesh3d(meshes.add(track4_mesh.0)),
-        MeshMaterial3d(track4_material),
+        MeshMaterial3d(materials.add(track4_material)),
         Transform::from_xyz(-1.0, 0.0, -2.0 + 1e-3),
-        // Transform::from_xyz(0.0, 1e-3, 0.0),
+    ));
+
+    // track 5 showcases racing lines on track 1 data
+    let track5_mesh = make_track_mesh(&TRACK1_DATA);
+    let mut track5_material = make_racing_line_material(&asset_server, track5_mesh.1);
+    track5_material.line_width = 0.5;
+    track5_material.lateral_range = Vec2::new(-1.8, 0.8);
+    commands.spawn((
+        Mesh3d(meshes.add(track5_mesh.0)),
+        MeshMaterial3d(materials.add(track5_material)),
+        Transform::from_xyz(12.0, 1e-3, 9.0)
+            .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
     ));
 
     // "textures/BlueNoise-Normal.png",
@@ -169,6 +180,8 @@ struct RacingLineMaterial {
     cursor_position: Vec2,
     #[uniform(7)]
     cursor_radius: f32,
+    #[uniform(8)]
+    lateral_range: Vec2,
     alpha_mode: AlphaMode,
 }
 
@@ -195,6 +208,7 @@ fn make_racing_line_material(
     RacingLineMaterial {
         track_length,
         line_width: 0.2,
+        lateral_range: Vec2::new(-0.8, 0.8),
         time: 0.0,
         cursor_position: Vec2::ZERO,
         cursor_radius: 0.5,
