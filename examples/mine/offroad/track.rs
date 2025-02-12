@@ -101,7 +101,7 @@ fn populate_tracks(
     ));
 
     // track 2 showcases water effect
-    let track2_material = materials.add(make_wavy_material(asset_server, 0.5));
+    let track2_material = materials.add(make_wavy_material(&asset_server, 0.5));
     commands.spawn((
         WavyMarker,
         Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA).0)),
@@ -164,6 +164,10 @@ struct RacingLineMaterial {
     line_width: f32,
     #[uniform(5)]
     time: f32,
+    #[uniform(6)]
+    cursor_position: Vec2,
+    #[uniform(7)]
+    cursor_radius: f32,
     alpha_mode: AlphaMode,
 }
 
@@ -191,6 +195,8 @@ fn make_racing_line_material(
         track_length,
         line_width: 0.2,
         time: 0.0,
+        cursor_position: Vec2::ZERO,
+        cursor_radius: 0.5,
         color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
             // "branding/icon.png",
@@ -228,7 +234,7 @@ fn animate_racing_line_materials(
 #[derive(Component)]
 struct WavyMarker;
 
-fn make_wavy_material(asset_server: Res<AssetServer>, scale: f32) -> StandardMaterial {
+fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMaterial {
     use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
