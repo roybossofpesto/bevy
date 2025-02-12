@@ -1,6 +1,20 @@
 use bevy::prelude::{Assets, Commands, Res, ResMut};
 
-pub fn populate_background(
+//////////////////////////////////////////////////////////////////////
+
+pub struct ScenePlugin;
+
+impl bevy::prelude::Plugin for ScenePlugin {
+    fn build(&self, app: &mut bevy::prelude::App) {
+        use bevy::prelude::Startup;
+        app.add_systems(Startup, populate_background);
+        app.add_systems(Startup, populate_camera_and_lights);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////
+
+fn populate_background(
     mut commands: Commands,
     mut meshes: ResMut<Assets<bevy::render::mesh::Mesh>>,
     mut images: ResMut<Assets<bevy::image::Image>>,
@@ -55,7 +69,7 @@ pub fn populate_background(
     ));
 }
 
-pub fn populate_camera_and_lights(mut commands: Commands) {
+fn populate_camera_and_lights(mut commands: Commands) {
     use bevy::prelude::*;
     use bevy::render::camera::ScalingMode;
 
@@ -65,7 +79,7 @@ pub fn populate_camera_and_lights(mut commands: Commands) {
     commands.spawn((
         PointLight {
             shadows_enabled: true,
-            intensity: 1.0e6,
+            intensity: 5.0e6,
             range: 100.0,
             shadow_depth_bias: 0.2,
             ..default()
@@ -76,7 +90,7 @@ pub fn populate_camera_and_lights(mut commands: Commands) {
         DirectionalLight {
             color: Color::WHITE,
             shadows_enabled: true,
-            illuminance: light_consts::lux::CLEAR_SUNRISE,
+            illuminance: light_consts::lux::OVERCAST_DAY,
             ..default()
         },
         Transform::from_translation(Vec3::Y).looking_at(Vec3::ZERO, Vec3::Y),

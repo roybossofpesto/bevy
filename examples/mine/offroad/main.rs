@@ -6,9 +6,6 @@
 mod scene;
 mod track;
 
-use scene::{populate_background, populate_camera_and_lights};
-use track::TrackPlugin;
-
 use bevy::prelude::*;
 
 fn main() {
@@ -50,10 +47,8 @@ fn main() {
         );
     }
 
-    app.add_systems(Startup, populate_background);
-    app.add_systems(Startup, populate_camera_and_lights);
-
-    app.add_plugins(TrackPlugin);
+    app.add_plugins(scene::ScenePlugin);
+    app.add_plugins(track::TrackPlugin);
 
     app.run();
 }
