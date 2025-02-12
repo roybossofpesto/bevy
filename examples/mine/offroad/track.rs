@@ -1,17 +1,125 @@
-use bevy::prelude::Res;
-use bevy::prelude::Vec3Swizzles;
-use bevy::prelude::{debug, info, warn};
-
+use bevy::asset::{AssetServer, Assets};
 use bevy::math::NormedVectorSpace;
 use bevy::math::{Mat3, Quat, Vec2, Vec3};
+use bevy::pbr::StandardMaterial;
+use bevy::render::mesh::Mesh;
+
+use bevy::prelude::Vec3Swizzles;
+use bevy::prelude::{debug, info, warn};
+use bevy::prelude::{Commands, Component, Query, Res, ResMut, Time, With};
+use bevy::prelude::{Mesh3d, MeshMaterial3d};
 
 use bevy::color::palettes::basic::BLUE;
 use std::f32::consts::PI;
 
-pub fn make_track_material(
-    asset_server: Res<bevy::asset::AssetServer>,
-    scale: f32,
-) -> bevy::pbr::StandardMaterial {
+//////////////////////////////////////////////////////////////////////
+
+pub struct TrackPlugin;
+
+impl bevy::prelude::Plugin for TrackPlugin {
+    fn build(&self, app: &mut bevy::prelude::App) {
+        use bevy::prelude::{Startup, Update};
+        app.add_systems(Startup, populate_tracks);
+        app.add_systems(Update, animate_track_materials);
+    }
+}
+
+#[derive(Component)]
+struct TrackMarker;
+
+fn animate_track_materials(
+    material_handles: Query<&MeshMaterial3d<StandardMaterial>, With<TrackMarker>>,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for material_handle in material_handles.iter() {
+        if let Some(material) = materials.get_mut(material_handle) {
+            material.uv_transform.translation.y += -0.8 * time.delta_secs();
+        }
+    }
+}
+
+fn populate_tracks(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    use bevy::image::ImageAddressMode;
+    use bevy::image::ImageLoaderSettings;
+    use bevy::image::ImageSampler;
+    use bevy::image::ImageSamplerDescriptor;
+    use bevy::math::Affine2;
+    use bevy::pbr::UvChannel;
+    use bevy::prelude::Transform;
+
+    info!("** populate_tracks **");
+
+    // track 0 showcases flow parametrization
+    let track0_material = materials.add(StandardMaterial {
+        base_color_channel: UvChannel::Uv0,
+        base_color_texture: Some(asset_server.load_with_settings(
+            "textures/fantasy_ui_borders/panel-border-010-repeated.png",
+            |s: &mut _| {
+                *s = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        // rewriting mode to repeat image,
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..ImageSamplerDescriptor::default()
+                    }),
+                    ..ImageLoaderSettings::default()
+                }
+            },
+        )),
+        ..StandardMaterial::default()
+    });
+    commands.spawn((
+        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA))),
+        MeshMaterial3d(track0_material.clone()),
+    ));
+
+    // track 1 showcases projected parametrization
+    let track1_material = materials.add(StandardMaterial {
+        base_color_channel: UvChannel::Uv1,
+        base_color_texture: Some(asset_server.load_with_settings(
+            "textures/uv_checker_bw.png",
+            |s: &mut _| {
+                *s = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..ImageSamplerDescriptor::default()
+                    }),
+                    ..ImageLoaderSettings::default()
+                }
+            },
+        )),
+        uv_transform: Affine2::from_scale(Vec2::new(1.0 / 8.0, 1.0 / 8.0)),
+        ..StandardMaterial::default()
+    });
+    commands.spawn((
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
+        MeshMaterial3d(track1_material),
+        Transform::from_xyz(-1.0, 0.0, -2.0),
+    ));
+
+    // track2 showcases parallax effect
+    let track2_material = materials.add(make_track_material(asset_server, 0.5));
+    commands.spawn((
+        TrackMarker,
+        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA))),
+        MeshMaterial3d(track2_material),
+        Transform::from_xyz(12.0, 0.0, 9.0)
+            .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
+    ));
+
+    // "textures/BlueNoise-Normal.png",
+}
+
+//////////////////////////////////////////////////////////////////////
+
+fn make_track_material(asset_server: Res<AssetServer>, scale: f32) -> StandardMaterial {
     use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
@@ -20,7 +128,7 @@ pub fn make_track_material(
     use bevy::math::Affine2;
     use bevy::math::Vec2;
     use bevy::pbr::UvChannel;
-    bevy::pbr::StandardMaterial {
+    StandardMaterial {
         perceptual_roughness: 0.2,
         base_color: Color::from(BLUE),
         // base_color_channel: UvChannel::Uv1,
@@ -69,11 +177,13 @@ pub fn make_track_material(
         )),
         parallax_depth_scale: 0.1,
         uv_transform: Affine2::from_scale(Vec2::ONE * scale),
-        ..bevy::pbr::StandardMaterial::default()
+        ..StandardMaterial::default()
     }
 }
 
-pub enum TrackPiece {
+//////////////////////////////////////////////////////////////////////
+
+enum TrackPiece {
     Start,
     Straight(StraightData),
     Corner(CornerData),
@@ -81,7 +191,7 @@ pub enum TrackPiece {
 }
 
 #[derive(Debug)]
-pub struct StraightData {
+struct StraightData {
     left: f32,
     right: f32,
     length: f32,
@@ -118,7 +228,7 @@ impl StraightData {
 }
 
 #[derive(Debug)]
-pub struct CornerData {
+struct CornerData {
     radius: f32,
     angle: f32,
     num_quads: u32,
@@ -141,7 +251,7 @@ impl CornerData {
     }
 }
 
-pub struct TrackData {
+struct TrackData {
     pieces: &'static [TrackPiece],
     initial_position: Vec3,
     initial_forward: Vec3,
@@ -151,7 +261,7 @@ pub struct TrackData {
     num_segments: u32,
 }
 
-pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
+fn make_track_mesh(track_data: &TrackData) -> Mesh {
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -334,6 +444,8 @@ pub fn make_track_mesh(track_data: &TrackData) -> bevy::render::mesh::Mesh {
     mesh
 }
 
+//////////////////////////////////////////////////////////////////////
+
 static TRACK0_PIECES: [TrackPiece; 15] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
@@ -352,7 +464,7 @@ static TRACK0_PIECES: [TrackPiece; 15] = [
     TrackPiece::Finish,
 ];
 
-pub static TRACK0_DATA: TrackData = TrackData {
+static TRACK0_DATA: TrackData = TrackData {
     pieces: &TRACK0_PIECES,
     initial_position: Vec3::new(-12.0, 0.0, 0.0),
     initial_forward: Vec3::Z,
@@ -378,7 +490,7 @@ static TRACK1_PIECES: [TrackPiece; 13] = [
     TrackPiece::Finish,
 ];
 
-pub static TRACK1_DATA: TrackData = TrackData {
+static TRACK1_DATA: TrackData = TrackData {
     pieces: &TRACK1_PIECES,
     initial_position: Vec3::new(1.0, 2.0, 0.0),
     initial_forward: Vec3::new(-1.0, 0.0, 0.0),
