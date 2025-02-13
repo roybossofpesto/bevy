@@ -1,7 +1,5 @@
-use bevy::ecs::query::QueryItem;
 use bevy::render::extract_component::{
-    ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin,
-    UniformComponentPlugin,
+    ComponentUniforms, ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin,
 };
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
@@ -95,14 +93,14 @@ impl FromWorld for SimuPipeline {
                 (
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::WriteOnly),
-                    // uniform_buffer::<SimuSettings>(true), // FIXME
+                    uniform_buffer::<SimuSettings>(true),
                 ),
             ),
         );
         let shader: Handle<Shader> = world.load_asset(SHADER_ASSET_PATH);
         let pipeline_cache = world.resource::<PipelineCache>();
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-            label: None,
+            label: Some(Cow::from("init_pipeline")),
             layout: vec![group_layout.clone()],
             push_constant_ranges: Vec::new(),
             shader: shader.clone(),
@@ -111,7 +109,7 @@ impl FromWorld for SimuPipeline {
             zero_initialize_workgroup_memory: false,
         });
         let update_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-            label: None,
+            label: Some(Cow::from("update_pipeline")),
             layout: vec![group_layout.clone()],
             push_constant_ranges: Vec::new(),
             shader,
@@ -146,29 +144,29 @@ fn prepare_bind_group(
     gpu_images: Res<RenderAssets<GpuImage>>,
     simu_images: Res<SimuImages>,
     render_device: Res<bevy::render::renderer::RenderDevice>,
-    uniforms: Res<ComponentUniforms<SimuSettings>>,
+    simu_settings: Res<ComponentUniforms<SimuSettings>>,
 ) {
-    if let Some(_) = uniforms.binding() {
-        warn!("!!!!");
-    }
+    let simu_binding = simu_settings.uniforms().binding();
+    assert!(simu_binding.is_some());
+
     let view_a = gpu_images.get(&simu_images.image_a).unwrap();
     let view_b = gpu_images.get(&simu_images.image_b).unwrap();
     let group_a = render_device.create_bind_group(
-        None,
+        Some("group_a"),
         &pipeline.group_layout,
         &BindGroupEntries::sequential((
             &view_a.texture_view,
             &view_b.texture_view,
-            // uniforms.binding().unwrap(), // FIXME
+            simu_binding.clone().unwrap(),
         )),
     );
     let group_b = render_device.create_bind_group(
-        None,
+        Some("group_b"),
         &pipeline.group_layout,
         &BindGroupEntries::sequential((
             &view_b.texture_view,
             &view_a.texture_view,
-            // uniforms.binding().unwrap(), // FIXME
+            simu_binding.unwrap(),
         )),
     );
     let bind_groups = SimuBindGroups { group_a, group_b };
@@ -232,6 +230,14 @@ impl bevy::render::render_graph::Node for SimuNode {
         render_context: &mut bevy::render::renderer::RenderContext,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
+        // // Get the settings uniform binding
+        // // let simu_settings = world.resource::<ComponentUniforms<SimuSettings>>();
+        // let foo = world.resource::<ComponentUniforms<SimuSettings>>();
+        // warn!("DDDDD {:?}", foo.binding());
+        // let Some(bar) = foo.uniforms().binding() else {
+        //     return Ok(());
+        // };
+
         let bind_groups = world.resource::<SimuBindGroups>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<SimuPipeline>();
@@ -246,6 +252,8 @@ impl bevy::render::render_graph::Node for SimuNode {
             warn!("$$$$ {:?}", settings_binding);
         }
 
+        // let kikou: DynamicUniformIndex<SimuSettings> = DynamicUniformIndex::<SimuSettings>();
+
         // select the pipeline based on the current state
         match self.state {
             SimuState::Loading => {}
@@ -253,7 +261,7 @@ impl bevy::render::render_graph::Node for SimuNode {
                 let init_pipeline = pipeline_cache
                     .get_compute_pipeline(pipeline.init_pipeline)
                     .unwrap();
-                pass.set_bind_group(0, &bind_groups.group_a, &[]);
+                pass.set_bind_group(0, &bind_groups.group_a, &[0]);
                 pass.set_pipeline(init_pipeline);
                 pass.dispatch_workgroups(
                     SIMU_SIZE.0 / WORKGROUP_SIZE,
@@ -272,7 +280,7 @@ impl bevy::render::render_graph::Node for SimuNode {
                     } else {
                         &bind_groups.group_b
                     },
-                    &[],
+                    &[0],
                 );
                 pass.set_pipeline(update_pipeline);
                 pass.dispatch_workgroups(
@@ -318,9 +326,10 @@ fn setup_simu(
         Mesh3d(meshes.add(Mesh::from(Cuboid::default()))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color_texture: Some(image_a.clone()),
-            ..default()
+            ..StandardMaterial::default()
         })),
         Transform::from_xyz(-7.0, 3.0, -11.0).with_scale(Vec3::ONE * 6.0),
+        SimuSettings { rng_seed: 42 },
     ));
 
     commands.insert_resource(SimuImages { image_a, image_b });

@@ -15,7 +15,7 @@ struct Settings {
 
 fn hash(value: u32) -> u32 {
     var state = value;
-    // state += settings.rng_seed;
+    state += settings.rng_seed;
     state = state ^ 2747636419u;
     state = state * 2654435769u;
     state = state ^ state >> 16u;
@@ -83,7 +83,9 @@ fn count_alive_neighbors_bb(location: vec2<i32>) -> u32 {
 
 @compute @workgroup_size(8, 8, 1)
 fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
-    let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
+    var location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
+    location.x += i32(settings.rng_seed);
+    location.x -= i32(settings.rng_seed);
 
     var color : vec4<f32> = textureLoad(input, location);
 
