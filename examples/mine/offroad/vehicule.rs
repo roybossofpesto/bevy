@@ -31,7 +31,7 @@ fn setup_vehicule(
     info!("** setup_vehicule **");
 
     // get a specific mesh
-    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb");
+    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0");
 
     commands.spawn((
         Mesh3d(my_mesh),
