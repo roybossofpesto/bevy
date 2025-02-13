@@ -1,5 +1,7 @@
 use bevy::prelude::{Assets, Commands, Res, ResMut};
 
+use bevy::color::palettes::basic::SILVER;
+
 //////////////////////////////////////////////////////////////////////
 
 pub struct ScenePlugin;
@@ -21,7 +23,6 @@ fn populate_background(
     mut materials: ResMut<Assets<bevy::pbr::StandardMaterial>>,
     asset_server: Res<bevy::asset::AssetServer>,
 ) {
-    use bevy::color::palettes::basic::SILVER;
     use bevy::prelude::*;
 
     info!("** populate_background **");
