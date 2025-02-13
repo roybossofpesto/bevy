@@ -3,7 +3,7 @@ use bevy::render::extract_component::{
 };
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
-use bevy::render::render_graph::{RenderGraph, RenderLabel};
+use bevy::render::render_graph::{Node, RenderGraph, RenderLabel};
 use bevy::render::render_resource::{
     binding_types::texture_storage_2d, binding_types::uniform_buffer, *,
 };
@@ -21,10 +21,15 @@ const WORKGROUP_SIZE: u32 = 8;
 
 //////////////////////////////////////////////////////////////////////
 
-pub struct SimuPlugin;
+#[derive(Component, ShaderType, ExtractComponent, Clone)]
+struct SimuSettings {
+    rng_seed: u32,
+}
 
 #[derive(Hash, Clone, Eq, PartialEq, Debug, RenderLabel)]
 struct SimuLabel;
+
+pub struct SimuPlugin;
 
 impl Plugin for SimuPlugin {
     fn build(&self, app: &mut App) {
@@ -64,8 +69,6 @@ impl Plugin for SimuPlugin {
         info!("** simu_finish **");
         let render_app = app.sub_app_mut(RenderApp);
         render_app.init_resource::<SimuPipeline>();
-        // render_app.init_resource::<ComponentUniforms<SimuSettings>>();
-        // render_app.insert_resource(ComponentUniforms(SimuSettings { rng_seed: 42 }));
     }
 }
 
@@ -78,14 +81,11 @@ struct SimuPipeline {
     update_pipeline: CachedComputePipelineId,
 }
 
-#[derive(Component, ShaderType, Default, Clone, Copy, ExtractComponent, Debug)]
-struct SimuSettings {
-    rng_seed: u32,
-}
-
 impl FromWorld for SimuPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<bevy::render::renderer::RenderDevice>();
+        let pipeline_cache = world.resource::<PipelineCache>();
+
         let group_layout = render_device.create_bind_group_layout(
             None,
             &BindGroupLayoutEntries::sequential(
@@ -97,8 +97,9 @@ impl FromWorld for SimuPipeline {
                 ),
             ),
         );
+
         let shader: Handle<Shader> = world.load_asset(SHADER_ASSET_PATH);
-        let pipeline_cache = world.resource::<PipelineCache>();
+
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some(Cow::from("init_pipeline")),
             layout: vec![group_layout.clone()],
@@ -108,6 +109,7 @@ impl FromWorld for SimuPipeline {
             entry_point: Cow::from("init"),
             zero_initialize_workgroup_memory: false,
         });
+
         let update_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some(Cow::from("update_pipeline")),
             layout: vec![group_layout.clone()],
@@ -193,7 +195,7 @@ impl Default for SimuNode {
     }
 }
 
-impl bevy::render::render_graph::Node for SimuNode {
+impl Node for SimuNode {
     fn update(&mut self, world: &mut World) {
         let pipeline = world.resource::<SimuPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
@@ -201,14 +203,10 @@ impl bevy::render::render_graph::Node for SimuNode {
         // if the corresponding pipeline has loaded, transition to the next stage
         match self.state {
             SimuState::Loading => {
-                match pipeline_cache.get_compute_pipeline_state(pipeline.init_pipeline) {
-                    CachedPipelineState::Ok(_) => {
-                        self.state = SimuState::Init;
-                    }
-                    CachedPipelineState::Err(err) => {
-                        panic!("simu init pipeline\n{err}")
-                    }
-                    _ => {}
+                if let CachedPipelineState::Ok(_) =
+                    pipeline_cache.get_compute_pipeline_state(pipeline.init_pipeline)
+                {
+                    self.state = SimuState::Init;
                 }
             }
             SimuState::Init => {
@@ -230,36 +228,20 @@ impl bevy::render::render_graph::Node for SimuNode {
         render_context: &mut bevy::render::renderer::RenderContext,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        // // Get the settings uniform binding
-        // // let simu_settings = world.resource::<ComponentUniforms<SimuSettings>>();
-        // let foo = world.resource::<ComponentUniforms<SimuSettings>>();
-        // warn!("DDDDD {:?}", foo.binding());
-        // let Some(bar) = foo.uniforms().binding() else {
-        //     return Ok(());
-        // };
-
         let bind_groups = world.resource::<SimuBindGroups>();
         let pipeline_cache = world.resource::<PipelineCache>();
-        let pipeline = world.resource::<SimuPipeline>();
+        let pipeline_simu = world.resource::<SimuPipeline>();
 
         let mut pass = render_context
             .command_encoder()
             .begin_compute_pass(&ComputePassDescriptor::default());
-
-        // Get the settings uniform binding
-        let settings_uniforms = world.resource::<ComponentUniforms<SimuSettings>>();
-        if let Some(settings_binding) = settings_uniforms.uniforms().binding() {
-            warn!("$$$$ {:?}", settings_binding);
-        }
-
-        // let kikou: DynamicUniformIndex<SimuSettings> = DynamicUniformIndex::<SimuSettings>();
 
         // select the pipeline based on the current state
         match self.state {
             SimuState::Loading => {}
             SimuState::Init => {
                 let init_pipeline = pipeline_cache
-                    .get_compute_pipeline(pipeline.init_pipeline)
+                    .get_compute_pipeline(pipeline_simu.init_pipeline)
                     .unwrap();
                 pass.set_bind_group(0, &bind_groups.group_a, &[0]);
                 pass.set_pipeline(init_pipeline);
@@ -271,7 +253,7 @@ impl bevy::render::render_graph::Node for SimuNode {
             }
             SimuState::Update(index) => {
                 let update_pipeline = pipeline_cache
-                    .get_compute_pipeline(pipeline.update_pipeline)
+                    .get_compute_pipeline(pipeline_simu.update_pipeline)
                     .unwrap();
                 pass.set_bind_group(
                     0,
