@@ -1,10 +1,14 @@
+use bevy::render::extract_component::{
+    ComponentUniforms, DynamicUniformIndex, ExtractComponentPlugin, UniformComponentPlugin,
+};
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
 use bevy::render::render_graph::{RenderGraph, RenderLabel};
-use bevy::render::render_resource::{binding_types::texture_storage_2d, *};
+use bevy::render::render_resource::{
+    binding_types::texture_storage_2d, binding_types::uniform_buffer, *,
+};
 use bevy::render::texture::GpuImage;
 use bevy::render::{Render, RenderApp, RenderSet};
-use bevy_render::render_resource::binding_types::uniform_buffer;
 
 use std::borrow::Cow;
 
@@ -29,6 +33,8 @@ impl Plugin for SimuPlugin {
         // Extract the game of life image resource from the main world into the render world
         // for operation on by the compute shader and display on the sprite.
         app.add_plugins(ExtractResourcePlugin::<SimuImages>::default());
+        app.add_plugins(UniformComponentPlugin::<SimuSettings>::default());
+
         let render_app = app.sub_app_mut(RenderApp);
         render_app.add_systems(
             Render,
@@ -52,12 +58,12 @@ impl Plugin for SimuPlugin {
 
 #[derive(Resource)]
 struct SimuPipeline {
-    texture_bind_group_layout: BindGroupLayout,
+    group_layout: BindGroupLayout,
     init_pipeline: CachedComputePipelineId,
     update_pipeline: CachedComputePipelineId,
 }
 
-#[derive(ShaderType)]
+#[derive(Component, ShaderType, Default, Resource, Clone)]
 struct SimuSettings {
     rng_seed: u32,
 }
@@ -65,14 +71,14 @@ struct SimuSettings {
 impl FromWorld for SimuPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<bevy::render::renderer::RenderDevice>();
-        let texture_bind_group_layout = render_device.create_bind_group_layout(
-            "SimuImages",
+        let group_layout = render_device.create_bind_group_layout(
+            None,
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::COMPUTE,
                 (
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::WriteOnly),
-                    uniform_buffer::<SimuSettings>(false),
+                    // uniform_buffer::<SimuSettings>(true), FIXME
                 ),
             ),
         );
@@ -80,7 +86,7 @@ impl FromWorld for SimuPipeline {
         let pipeline_cache = world.resource::<PipelineCache>();
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
-            layout: vec![texture_bind_group_layout.clone()],
+            layout: vec![group_layout.clone()],
             push_constant_ranges: Vec::new(),
             shader: shader.clone(),
             shader_defs: vec![],
@@ -89,7 +95,7 @@ impl FromWorld for SimuPipeline {
         });
         let update_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
-            layout: vec![texture_bind_group_layout.clone()],
+            layout: vec![group_layout.clone()],
             push_constant_ranges: Vec::new(),
             shader,
             shader_defs: vec![],
@@ -98,7 +104,7 @@ impl FromWorld for SimuPipeline {
         });
 
         SimuPipeline {
-            texture_bind_group_layout,
+            group_layout,
             init_pipeline,
             update_pipeline,
         }
@@ -123,23 +129,29 @@ fn prepare_bind_group(
     gpu_images: Res<RenderAssets<GpuImage>>,
     simu_images: Res<SimuImages>,
     render_device: Res<bevy::render::renderer::RenderDevice>,
+    uniforms: Res<ComponentUniforms<SimuSettings>>,
 ) {
     let view_a = gpu_images.get(&simu_images.image_a).unwrap();
     let view_b = gpu_images.get(&simu_images.image_b).unwrap();
-    let bind_group_0 = render_device.create_bind_group(
+    let group_a = render_device.create_bind_group(
         None,
-        &pipeline.texture_bind_group_layout,
-        &BindGroupEntries::sequential((&view_a.texture_view, &view_b.texture_view)),
+        &pipeline.group_layout,
+        &BindGroupEntries::sequential((
+            &view_a.texture_view,
+            &view_b.texture_view,
+            // uniforms.binding().unwrap(), // FIXME
+        )),
     );
-    let bind_group_1 = render_device.create_bind_group(
+    let group_b = render_device.create_bind_group(
         None,
-        &pipeline.texture_bind_group_layout,
-        &BindGroupEntries::sequential((&view_b.texture_view, &view_a.texture_view)),
+        &pipeline.group_layout,
+        &BindGroupEntries::sequential((
+            &view_b.texture_view,
+            &view_a.texture_view,
+            // uniforms.binding().unwrap(), // FIXME
+        )),
     );
-    let bind_groups = SimuBindGroups {
-        group_a: bind_group_0,
-        group_b: bind_group_1,
-    };
+    let bind_groups = SimuBindGroups { group_a, group_b };
     commands.insert_resource(bind_groups);
 }
 
@@ -283,7 +295,11 @@ fn setup_simu(
             ..default()
         })),
         Transform::from_xyz(-7.0, 3.0, -11.0).with_scale(Vec3::ONE * 6.0),
+        // SimuSettings::default(),
     ));
+    // ComponentUniforms(SimuSettings { rng_seed: 42 }),
+    // let foo = world.resource::<>();
 
     commands.insert_resource(SimuImages { image_a, image_b });
+    // commands.insert_resource(SimuSettings { rng_seed: 42 }); FIXME
 }
