@@ -1,5 +1,7 @@
+use bevy::ecs::query::QueryItem;
 use bevy::render::extract_component::{
-    ComponentUniforms, DynamicUniformIndex, ExtractComponentPlugin, UniformComponentPlugin,
+    ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin,
+    UniformComponentPlugin,
 };
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
@@ -30,10 +32,23 @@ impl Plugin for SimuPlugin {
     fn build(&self, app: &mut App) {
         info!("** build_simu **");
 
+        app.add_plugins((
+            // The settings will be a component that lives in the main world but will
+            // be extracted to the render world every frame.
+            // This makes it possible to control the effect from the main world.
+            // This plugin will take care of extracting it automatically.
+            // It's important to derive [`ExtractComponent`] on [`PostProcessingSettings`]
+            // for this plugin to work correctly.
+            ExtractComponentPlugin::<SimuSettings>::default(),
+            // The settings will also be the data used in the shader.
+            // This plugin will prepare the component for the GPU by creating a uniform buffer
+            // and writing the data to that buffer every frame.
+            UniformComponentPlugin::<SimuSettings>::default(),
+        ));
+
         // Extract the game of life image resource from the main world into the render world
         // for operation on by the compute shader and display on the sprite.
         app.add_plugins(ExtractResourcePlugin::<SimuImages>::default());
-        app.add_plugins(UniformComponentPlugin::<SimuSettings>::default());
 
         let render_app = app.sub_app_mut(RenderApp);
         render_app.add_systems(
@@ -51,6 +66,8 @@ impl Plugin for SimuPlugin {
         info!("** simu_finish **");
         let render_app = app.sub_app_mut(RenderApp);
         render_app.init_resource::<SimuPipeline>();
+        // render_app.init_resource::<ComponentUniforms<SimuSettings>>();
+        // render_app.insert_resource(ComponentUniforms(SimuSettings { rng_seed: 42 }));
     }
 }
 
@@ -63,7 +80,7 @@ struct SimuPipeline {
     update_pipeline: CachedComputePipelineId,
 }
 
-#[derive(Component, ShaderType, Default, Resource, Clone)]
+#[derive(Component, ShaderType, Default, Clone, Copy, ExtractComponent, Debug)]
 struct SimuSettings {
     rng_seed: u32,
 }
@@ -78,7 +95,7 @@ impl FromWorld for SimuPipeline {
                 (
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TEXTURE_FORMAT, StorageTextureAccess::WriteOnly),
-                    // uniform_buffer::<SimuSettings>(true), FIXME
+                    // uniform_buffer::<SimuSettings>(true), // FIXME
                 ),
             ),
         );
@@ -131,6 +148,9 @@ fn prepare_bind_group(
     render_device: Res<bevy::render::renderer::RenderDevice>,
     uniforms: Res<ComponentUniforms<SimuSettings>>,
 ) {
+    if let Some(_) = uniforms.binding() {
+        warn!("!!!!");
+    }
     let view_a = gpu_images.get(&simu_images.image_a).unwrap();
     let view_b = gpu_images.get(&simu_images.image_b).unwrap();
     let group_a = render_device.create_bind_group(
@@ -220,6 +240,12 @@ impl bevy::render::render_graph::Node for SimuNode {
             .command_encoder()
             .begin_compute_pass(&ComputePassDescriptor::default());
 
+        // Get the settings uniform binding
+        let settings_uniforms = world.resource::<ComponentUniforms<SimuSettings>>();
+        if let Some(settings_binding) = settings_uniforms.uniforms().binding() {
+            warn!("$$$$ {:?}", settings_binding);
+        }
+
         // select the pipeline based on the current state
         match self.state {
             SimuState::Loading => {}
@@ -295,11 +321,7 @@ fn setup_simu(
             ..default()
         })),
         Transform::from_xyz(-7.0, 3.0, -11.0).with_scale(Vec3::ONE * 6.0),
-        // SimuSettings::default(),
     ));
-    // ComponentUniforms(SimuSettings { rng_seed: 42 }),
-    // let foo = world.resource::<>();
 
     commands.insert_resource(SimuImages { image_a, image_b });
-    // commands.insert_resource(SimuSettings { rng_seed: 42 }); FIXME
 }
