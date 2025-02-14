@@ -31,8 +31,8 @@ enum Player {
 #[derive(Component)]
 struct BoatData {
     player: Player,
-    pos_prev: [f32; 2],
-    pos_current: [f32; 2],
+    position_prev: [f32; 2],
+    position_current: [f32; 2],
 }
 
 fn setup_vehicule(
@@ -60,8 +60,8 @@ fn setup_vehicule(
             .with_scale(Vec3::ONE * 0.15),
         BoatData {
             player: Player::One,
-            pos_prev: red_pos.xz().into(),
-            pos_current: red_pos.xz().into(),
+            position_prev: red_pos.xz().into(),
+            position_current: red_pos.xz().into(),
         },
     ));
     commands.spawn((
@@ -72,23 +72,25 @@ fn setup_vehicule(
             .with_scale(Vec3::ONE * 0.15),
         BoatData {
             player: Player::Two,
-            pos_prev: blue_pos.xz().into(),
-            pos_current: blue_pos.xz().into(),
+            position_prev: blue_pos.xz().into(),
+            position_current: blue_pos.xz().into(),
         },
     ));
 }
 
 fn update_vehicule_physics(
     mut query: Query<(&mut BoatData, &mut Transform)>,
-    // time: Res<Time>,
+    time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
     for (mut data, mut transform) in &mut query {
-        let mut pos_next = data.pos_current;
+        let pos_prev = Vec2::from_array(data.position_prev);
+        let pos_current = Vec2::from_array(data.position_current);
+        let mut accel_current = Vec2::ZERO;
         match data.player {
             Player::One => {
                 if keyboard.just_pressed(KeyCode::Enter) {
-                    pos_next[1] += 1.0;
+                    accel_current.x = 1.0;
                 }
                 // if keyboard.just_pressed(KeyCode::ArrowRight) {
                 //     delta.x += 1.0;
@@ -103,7 +105,7 @@ fn update_vehicule_physics(
             }
             Player::Two => {
                 if keyboard.just_pressed(KeyCode::KeyA) {
-                    pos_next[0] += 1.0;
+                    accel_current.y = 1.0;
                 }
                 // if keyboard.just_pressed(KeyCode::ArrowRight) {
                 //     delta.x += 1.0;
@@ -117,8 +119,11 @@ fn update_vehicule_physics(
                 // transform.translation += delta;
             }
         }
-        transform.translation = Vec3::new(pos_next[0], 0.0, pos_next[1]);
-        data.pos_prev = data.pos_current;
-        data.pos_current = pos_next;
+        accel_current *= 1e-3;
+        let dt = time.elapsed_secs();
+        let pos_next = 2.0 * pos_current - pos_prev + accel_current * dt * dt;
+        data.position_prev = data.position_current;
+        data.position_current = pos_next.into();
+        transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
     }
 }
