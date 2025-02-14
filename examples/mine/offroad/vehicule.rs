@@ -1,5 +1,8 @@
 use bevy::prelude::*;
 
+use bevy::color::palettes::basic::PURPLE;
+use bevy::color::palettes::basic::YELLOW;
+
 //////////////////////////////////////////////////////////////////////
 
 pub struct VehiculePlugin;
@@ -17,8 +20,6 @@ impl Plugin for VehiculePlugin {
     // }
 }
 
-use bevy::color::palettes::basic::RED;
-
 //////////////////////////////////////////////////////////////////////
 
 fn setup_vehicule(
@@ -31,18 +32,24 @@ fn setup_vehicule(
     info!("** setup_vehicule **");
 
     // get a specific mesh
-    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0");
+    // let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.gltf#Mesh0/Primitive0");
+    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
+    // let my_mesh: Handle<Mesh> = server.load("models/animated/Fox.glb");
 
+    let red_pos = Vec3::new(-11.5, 0.0, 0.0);
+    let blue_pos = Vec3::new(-12.5, 0.0, 0.0);
+    commands.spawn((
+        Mesh3d(my_mesh.clone()),
+        MeshMaterial3d(materials.add(Color::from(YELLOW))),
+        Transform::from_translation(red_pos)
+            .looking_at(red_pos + Vec3::Z, Vec3::Y)
+            .with_scale(Vec3::ONE * 0.15),
+    ));
     commands.spawn((
         Mesh3d(my_mesh),
-        MeshMaterial3d(materials.add(Color::from(RED))),
-        Transform::from_xyz(0.0, 5.0, 0.0),
+        MeshMaterial3d(materials.add(Color::from(PURPLE))),
+        Transform::from_translation(blue_pos)
+            .looking_at(blue_pos + Vec3::Z, Vec3::Y)
+            .with_scale(Vec3::ONE * 0.15),
     ));
-
-    // spawn a whole scene
-    // let my_scene: Handle<Scene> = server.load("my_scene.gltf#Scene0");
-    // commands.spawn(bevy::prelude::SceneBundle {
-    //     scene: my_scene,
-    //     ..Default::default()
-    // });
 }
