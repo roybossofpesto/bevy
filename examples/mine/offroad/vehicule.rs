@@ -24,6 +24,7 @@ impl Plugin for VehiculePlugin {
 
 //////////////////////////////////////////////////////////////////////
 
+#[derive(Clone)]
 enum Player {
     One,
     Two,
@@ -35,6 +36,27 @@ struct BoatData {
     position_prev: [f32; 2],
     position_current: [f32; 2],
     angle_current: f32,
+}
+
+impl BoatData {
+    fn from_player(player: Player) -> Self {
+        const POS_P1: Vec3 = Vec3::new(-11.5, 0.0, 0.0);
+        const POS_P2: Vec3 = Vec3::new(-12.5, 0.0, 0.0);
+        match player {
+            Player::One => BoatData {
+                player: Player::One,
+                position_prev: POS_P1.xz().into(),
+                position_current: POS_P1.xz().into(),
+                angle_current: PI,
+            },
+            Player::Two => BoatData {
+                player: Player::Two,
+                position_prev: POS_P2.xz().into(),
+                position_current: POS_P2.xz().into(),
+                angle_current: PI,
+            },
+        }
+    }
 }
 
 fn setup_vehicule(
@@ -51,34 +73,17 @@ fn setup_vehicule(
     let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
     // let my_mesh: Handle<Mesh> = server.load("models/animated/Fox.glb");
 
-    let red_pos = Vec3::new(-11.5, 0.0, 0.0);
-    let blue_pos = Vec3::new(-12.5, 0.0, 0.0);
-
     commands.spawn((
         Mesh3d(my_mesh.clone()),
         MeshMaterial3d(materials.add(Color::from(YELLOW))),
-        Transform::from_translation(red_pos)
-            .looking_at(red_pos + Vec3::Z, Vec3::Y)
-            .with_scale(Vec3::ONE * 0.15),
-        BoatData {
-            player: Player::One,
-            position_prev: red_pos.xz().into(),
-            position_current: red_pos.xz().into(),
-            angle_current: PI,
-        },
+        Transform::from_scale(Vec3::ONE * 0.15),
+        BoatData::from_player(Player::One),
     ));
     commands.spawn((
         Mesh3d(my_mesh),
         MeshMaterial3d(materials.add(Color::from(PURPLE))),
-        Transform::from_translation(blue_pos)
-            .looking_at(blue_pos + Vec3::Z, Vec3::Y)
-            .with_scale(Vec3::ONE * 0.15),
-        BoatData {
-            player: Player::Two,
-            position_prev: blue_pos.xz().into(),
-            position_current: blue_pos.xz().into(),
-            angle_current: PI,
-        },
+        Transform::from_scale(Vec3::ONE * 0.15),
+        BoatData::from_player(Player::Two),
     ));
 }
 
@@ -122,6 +127,10 @@ fn update_vehicule_physics(
 
     let dt = time.delta_secs();
     for (mut data, mut transform) in &mut query {
+        if keyboard.just_pressed(KeyCode::KeyR) {
+            let player = data.player.clone();
+            *data = BoatData::from_player(player);
+        }
         let pos_prev = Vec2::from_array(data.position_prev);
         let pos_current = Vec2::from_array(data.position_current);
         let mut physics = BoatPhysics::from_dt(dt);
@@ -142,8 +151,18 @@ fn update_vehicule_physics(
                 }
             }
             Player::Two => {
-                if keyboard.just_pressed(KeyCode::Enter) {
-                    physics.accel.x = physics.mass * 50.0;
+                if keyboard.pressed(KeyCode::KeyA) {
+                    data.angle_current += physics.turning_speed * dt;
+                }
+                if keyboard.pressed(KeyCode::KeyD) {
+                    data.angle_current -= physics.turning_speed * dt;
+                }
+                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - data.angle_current);
+                if keyboard.pressed(KeyCode::KeyW) {
+                    physics.accel += physics.thrust * dir_current
+                }
+                if keyboard.pressed(KeyCode::KeyS) {
+                    physics.friction = Vec2::ONE * 0.10;
                 }
             }
         };
