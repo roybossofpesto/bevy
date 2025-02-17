@@ -239,16 +239,16 @@ fn animate_racing_line_materials(
     mut materials: ResMut<Assets<RacingLineMaterial>>,
 ) {
     let mut delta = Vec2::ZERO;
-    if keyboard.just_pressed(KeyCode::ArrowLeft) {
+    if keyboard.just_pressed(KeyCode::KeyJ) {
         delta.x -= 1.0;
     }
-    if keyboard.just_pressed(KeyCode::ArrowRight) {
+    if keyboard.just_pressed(KeyCode::KeyL) {
         delta.x += 1.0;
     }
-    if keyboard.just_pressed(KeyCode::ArrowUp) {
+    if keyboard.just_pressed(KeyCode::KeyI) {
         delta.y += 1.0;
     }
-    if keyboard.just_pressed(KeyCode::ArrowDown) {
+    if keyboard.just_pressed(KeyCode::KeyK) {
         delta.y -= 1.0;
     }
     for material_handle in material_handles.iter() {

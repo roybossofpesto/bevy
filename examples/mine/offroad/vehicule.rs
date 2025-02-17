@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use bevy::color::palettes::basic::PURPLE;
 use bevy::color::palettes::basic::YELLOW;
+use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
 
@@ -33,6 +34,7 @@ struct BoatData {
     player: Player,
     position_prev: [f32; 2],
     position_current: [f32; 2],
+    angle_current: f32,
 }
 
 fn setup_vehicule(
@@ -62,6 +64,7 @@ fn setup_vehicule(
             player: Player::One,
             position_prev: red_pos.xz().into(),
             position_current: red_pos.xz().into(),
+            angle_current: PI,
         },
     ));
     commands.spawn((
@@ -74,6 +77,7 @@ fn setup_vehicule(
             player: Player::Two,
             position_prev: blue_pos.xz().into(),
             position_current: blue_pos.xz().into(),
+            angle_current: PI,
         },
     ));
 }
@@ -83,47 +87,70 @@ fn update_vehicule_physics(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
+    struct BoatPhysics {
+        mass: f32,
+        friction: Vec2,
+        thrust: f32,
+        turning_speed: f32,
+        accel: Vec2,
+        dt: f32,
+    }
+
+    impl BoatPhysics {
+        fn from_dt(dt: f32) -> Self {
+            Self {
+                mass: 100.0,
+                friction: Vec2::new(5e-2, 10e-3),
+                thrust: 500.0,
+                turning_speed: PI / 2.0,
+                accel: Vec2::ZERO,
+                dt,
+            }
+        }
+    }
+
+    impl BoatPhysics {
+        fn compute_next_pos(&self, pos_prev: Vec2, pos_current: Vec2, angle_current: f32) -> Vec2 {
+            let accel = self.accel / self.mass / 2.0;
+            let pp = Mat2::from_angle(angle_current);
+            let friction = pp.transpose() * Mat2::from_diagonal(self.friction) * pp;
+            (2.0 * Mat2::IDENTITY - friction) * pos_current
+                - (1.0 * Mat2::IDENTITY - friction) * pos_prev
+                + accel * self.dt * self.dt
+        }
+    }
+
+    let dt = time.delta_secs();
     for (mut data, mut transform) in &mut query {
         let pos_prev = Vec2::from_array(data.position_prev);
         let pos_current = Vec2::from_array(data.position_current);
-        let mut accel_current = Vec2::ZERO;
+        let mut physics = BoatPhysics::from_dt(dt);
         match data.player {
             Player::One => {
-                if keyboard.just_pressed(KeyCode::Enter) {
-                    accel_current.x = 1.0;
+                if keyboard.pressed(KeyCode::ArrowLeft) {
+                    data.angle_current += physics.turning_speed * dt;
                 }
-                // if keyboard.just_pressed(KeyCode::ArrowRight) {
-                //     delta.x += 1.0;
-                // }
-                // if keyboard.just_pressed(KeyCode::ArrowUp) {
-                //     delta.y += 1.0;
-                // }
-                // if keyboard.just_pressed(KeyCode::ArrowDown) {
-                //     delta.y -= 1.0;
-                // }
-                // transform.translation += delta;
+                if keyboard.pressed(KeyCode::ArrowRight) {
+                    data.angle_current -= physics.turning_speed * dt;
+                }
+                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - data.angle_current);
+                if keyboard.pressed(KeyCode::ArrowUp) {
+                    physics.accel += physics.thrust * dir_current
+                }
+                if keyboard.pressed(KeyCode::ArrowDown) {
+                    physics.friction = Vec2::ONE * 0.10;
+                }
             }
             Player::Two => {
-                if keyboard.just_pressed(KeyCode::KeyA) {
-                    accel_current.y = 1.0;
+                if keyboard.just_pressed(KeyCode::Enter) {
+                    physics.accel.x = physics.mass * 50.0;
                 }
-                // if keyboard.just_pressed(KeyCode::ArrowRight) {
-                //     delta.x += 1.0;
-                // }
-                // if keyboard.just_pressed(KeyCode::ArrowUp) {
-                //     delta.y += 1.0;
-                // }
-                // if keyboard.just_pressed(KeyCode::ArrowDown) {
-                //     delta.y -= 1.0;
-                // }
-                // transform.translation += delta;
             }
-        }
-        accel_current *= 1e-3;
-        let dt = time.elapsed_secs();
-        let pos_next = 2.0 * pos_current - pos_prev + accel_current * dt * dt;
+        };
+        let pos_next = physics.compute_next_pos(pos_prev, pos_current, data.angle_current);
         data.position_prev = data.position_current;
         data.position_current = pos_next.into();
         transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
+        transform.rotation = Quat::from_axis_angle(Vec3::Y, data.angle_current);
     }
 }
