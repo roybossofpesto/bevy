@@ -97,26 +97,26 @@ fn update_vehicule_physics(
         friction: Vec2,
         thrust: f32,
         turning_speed: f32,
-        accel: Vec2,
+        force: Vec2,
         dt: f32,
     }
 
     impl BoatPhysics {
         fn from_dt(dt: f32) -> Self {
             Self {
-                mass: 100.0,
-                friction: Vec2::new(5e-2, 10e-3),
-                thrust: 500.0,
-                turning_speed: PI / 2.0,
-                accel: Vec2::ZERO,
-                dt,
+                mass: 100.0, // kg
+                friction: Vec2::new(5e-2, 10e-3), // 0 <= f < 1
+                thrust: 500.0, // m / s^2 / kg ~ N
+                turning_speed: PI / 2.0, // rad / s
+                force: Vec2::ZERO, // m / s^2 /kg ~ N
+                dt, // s
             }
         }
     }
 
     impl BoatPhysics {
         fn compute_next_pos(&self, pos_prev: Vec2, pos_current: Vec2, angle_current: f32) -> Vec2 {
-            let accel = self.accel / self.mass / 2.0;
+            let accel = self.force / self.mass / 2.0;
             let pp = Mat2::from_angle(angle_current);
             let friction = pp.transpose() * Mat2::from_diagonal(self.friction) * pp;
             (2.0 * Mat2::IDENTITY - friction) * pos_current
@@ -144,7 +144,7 @@ fn update_vehicule_physics(
                 }
                 let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - data.angle_current);
                 if keyboard.pressed(KeyCode::ArrowUp) {
-                    physics.accel += physics.thrust * dir_current
+                    physics.force += physics.thrust * dir_current
                 }
                 if keyboard.pressed(KeyCode::ArrowDown) {
                     physics.friction = Vec2::ONE * 0.10;
@@ -159,7 +159,7 @@ fn update_vehicule_physics(
                 }
                 let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - data.angle_current);
                 if keyboard.pressed(KeyCode::KeyW) {
-                    physics.accel += physics.thrust * dir_current
+                    physics.force += physics.thrust * dir_current
                 }
                 if keyboard.pressed(KeyCode::KeyS) {
                     physics.friction = Vec2::ONE * 0.10;
