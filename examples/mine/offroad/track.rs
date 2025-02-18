@@ -14,6 +14,7 @@ use bevy::prelude::{Mesh3d, MeshMaterial3d};
 
 use bevy::color::palettes::basic::BLUE;
 use bevy::color::palettes::basic::WHITE;
+
 use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
@@ -39,6 +40,7 @@ fn populate_tracks(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
+    use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
     use bevy::image::ImageSampler;
@@ -48,6 +50,19 @@ fn populate_tracks(
     use bevy::prelude::Transform;
 
     info!("** populate_tracks **");
+
+    // let checkpoint_material = materials.add(StandardMaterial {
+    //     perceptual_roughness: 0.2,
+    //     base_color: Color::from(RED),
+    //     ..StandardMaterial::default()
+    // });
+    let checkpoint_material = materials.add(StandardMaterial {
+        base_color: Color::hsva(0.0, 0.8, 1.0, 0.8),
+        alpha_mode: AlphaMode::Blend,
+        ..StandardMaterial::default()
+    });
+
+    // ColorMaterial
 
     // track 0 showcases flow parametrization
     let track0_material = materials.add(StandardMaterial {
@@ -71,6 +86,10 @@ fn populate_tracks(
     commands.spawn((
         Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA).0)),
         MeshMaterial3d(track0_material.clone()),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA).1)),
+        MeshMaterial3d(checkpoint_material),
     ));
 
     // track 1 showcases projected parametrization
@@ -124,7 +143,7 @@ fn populate_racing_lines(
 
     // track 3 showcases racing lines on track 0 data
     let track3_mesh = make_track_mesh(&TRACK0_DATA);
-    let track3_material = make_racing_line_material(&asset_server, track3_mesh.1);
+    let track3_material = make_racing_line_material(&asset_server, track3_mesh.2);
     commands.spawn((
         Mesh3d(meshes.add(track3_mesh.0)),
         MeshMaterial3d(materials.add(track3_material)),
@@ -133,7 +152,7 @@ fn populate_racing_lines(
 
     // track 4 showcases racing lines on track 1 data
     let track4_mesh = make_track_mesh(&TRACK1_DATA);
-    let track4_material = make_racing_line_material(&asset_server, track4_mesh.1);
+    let track4_material = make_racing_line_material(&asset_server, track4_mesh.2);
     commands.spawn((
         Mesh3d(meshes.add(track4_mesh.0)),
         MeshMaterial3d(materials.add(track4_material)),
@@ -142,7 +161,7 @@ fn populate_racing_lines(
 
     // track 5 showcases racing lines on track 1 data
     let track5_mesh = make_track_mesh(&TRACK1_DATA);
-    let mut track5_material = make_racing_line_material(&asset_server, track5_mesh.1);
+    let mut track5_material = make_racing_line_material(&asset_server, track5_mesh.2);
     track5_material.line_width = 0.5;
     track5_material.lateral_range = Vec2::new(-1.8, 0.8);
     commands.spawn((
@@ -344,6 +363,7 @@ enum TrackPiece {
     Start,
     Straight(StraightData),
     Corner(CornerData),
+    Checkpoint(u8),
     Finish,
 }
 
@@ -418,7 +438,7 @@ struct TrackData {
     num_segments: u32,
 }
 
-fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
+fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -434,6 +454,31 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
     }
 
     let initial_righthand = track_data.initial_forward.cross(track_data.initial_up);
+
+    let mut checkpoint_positions: Vec<Vec3> = vec![];
+    let mut checkpoint_normals: Vec<Vec3> = vec![];
+    let mut checkpoint_triangles: Vec<u32> = vec![];
+    let mut push_checkpoint = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
+        let righthand = forward.cross(track_data.initial_up);
+        let aa = position + righthand * left;
+        let bb = position + righthand * right;
+        let cc = aa + track_data.initial_up;
+        let dd = bb + track_data.initial_up;
+        let next_vertex = checkpoint_positions.len() as u32;
+        checkpoint_positions.push(aa);
+        checkpoint_positions.push(bb);
+        checkpoint_positions.push(cc);
+        checkpoint_positions.push(dd);
+        checkpoint_normals.push(-forward.clone());
+        checkpoint_normals.push(-forward.clone());
+        checkpoint_normals.push(-forward.clone());
+        checkpoint_normals.push(-forward.clone());
+        let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
+        let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
+        checkpoint_triangles.append(&mut tri_aa);
+        checkpoint_triangles.append(&mut tri_bb);
+        next_vertex
+    };
 
     let mut mesh_positions: Vec<Vec3> = vec![];
     let mut mesh_normals: Vec<Vec3> = vec![];
@@ -554,7 +599,7 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
                 let pos_error = (current_position - track_data.initial_position).norm();
                 let dir_error = (current_forward - track_data.initial_forward).norm();
                 let left_error = f32::abs(current_left - track_data.initial_left);
-                let right_error = f32::abs(current_left - track_data.initial_left);
+                let right_error = f32::abs(current_right - track_data.initial_right);
                 let eps: f32 = 1e-3;
                 is_looping = pos_error < eps
                     && dir_error < eps
@@ -570,9 +615,25 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
                     is_looping,
                 );
             }
+            TrackPiece::Checkpoint(index) => {
+                debug!("Checkpoint {}", index);
+                push_checkpoint(
+                    &current_position,
+                    &current_forward,
+                    current_left,
+                    current_right,
+                );
+                push_checkpoint(
+                    &current_position,
+                    &-current_forward,
+                    -current_right,
+                    -current_left,
+                );
+            }
         }
     }
 
+    assert!(checkpoint_triangles.len() % 3 == 0);
     assert!(mesh_triangles.len() % 3 == 0);
     debug!("num_vertices {}", mesh_positions.len());
     debug!("num_triangles {}", mesh_triangles.len() / 3);
@@ -586,14 +647,23 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
     use bevy::render::render_asset::RenderAssetUsages;
     use bevy::render::render_resource::PrimitiveTopology;
 
+    let mut checkpoint = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+
+    checkpoint = checkpoint.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, checkpoint_positions);
+    checkpoint = checkpoint.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, checkpoint_normals);
+    checkpoint = checkpoint.with_inserted_indices(Indices::U32(checkpoint_triangles));
+
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
 
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_positions);
-    mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
     mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
+    mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
 
     // let mut channel_uvs = Mesh::ATTRIBUTE_UV_0;
     // let mut channel_pqs = Mesh::ATTRIBUTE_UV_1;
@@ -605,22 +675,28 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, f32, bool) {
 
     mesh = mesh.with_generated_tangents().unwrap();
 
-    (mesh, current_length, is_looping)
+    (mesh, checkpoint, current_length, is_looping)
 }
 
 //////////////////////////////////////////////////////////////////////
 
-static TRACK0_PIECES: [TrackPiece; 15] = [
+static TRACK0_PIECES: [TrackPiece; 21] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
+    TrackPiece::Checkpoint(0),
     TrackPiece::Straight(StraightData::from_length(8.0)),
+    TrackPiece::Checkpoint(1),
     TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Checkpoint(2),
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Checkpoint(3),
     TrackPiece::Straight(StraightData::from_length(14.0)),
+    TrackPiece::Checkpoint(4),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(11.0)),
+    TrackPiece::Checkpoint(5),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
