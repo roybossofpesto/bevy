@@ -168,7 +168,8 @@ fn animate_morpheus_basic_materials(
     delta /= 10.0;
     for material_handle in material_handles.iter() {
         if let Some(material) = materials.get_mut(material_handle) {
-            material.cursor_position += delta;
+            material.cursor_data.x += delta.x;
+            material.cursor_data.y += delta.y;
         }
     }
 }
@@ -231,9 +232,7 @@ struct MorpheusBasicMaterial {
     #[sampler(1)]
     color_texture: Option<Handle<Image>>,
     #[uniform(2)]
-    cursor_position: Vec2,
-    #[uniform(3)]
-    cursor_radius: f32,
+    cursor_data: Vec4,
     alpha_mode: AlphaMode,
 }
 
@@ -254,8 +253,7 @@ impl Material for MorpheusBasicMaterial {
 fn make_morpheus_basic_material(color_texture: Handle<Image>) -> MorpheusBasicMaterial {
     MorpheusBasicMaterial {
         color_texture: Some(color_texture),
-        cursor_position: Vec2::ZERO,
-        cursor_radius: 0.1,
+        cursor_data: Vec4::new(0.0, 0.0, 0.1, 0.0),
         alpha_mode: AlphaMode::Blend,
     }
 }

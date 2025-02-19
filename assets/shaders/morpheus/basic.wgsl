@@ -5,8 +5,7 @@
 
 @group(2) @binding(0) var color_texture: texture_2d<f32>;
 @group(2) @binding(1) var color_sampler: sampler;
-@group(2) @binding(2) var<uniform> cursor_position: vec2<f32>;
-@group(2) @binding(3) var<uniform> cursor_radius: f32;
+@group(2) @binding(2) var<uniform> cursor_data: vec4<f32>;
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
@@ -66,7 +65,7 @@ fn fragment(
         color = vec4((normalize(view_grad) + 1.0) / 2.0 * shadow_factor, 1.0);
     }
 
-    if length(out.uv - cursor_position) < cursor_radius {
+    if length(out.uv - cursor_data.xy) < cursor_data.z {
         color = vec4(1.0, 1.0, 0.0, 1.0);
     }
 
