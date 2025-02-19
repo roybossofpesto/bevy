@@ -16,7 +16,8 @@ impl Plugin for MorpheusPlugin {
     fn build(&self, app: &mut App) {
         info!("** build_morpheus_plugin **");
 
-        app.add_plugins(MaterialPlugin::<MorpheusBasicMaterial>::default());
+        app.add_plugins(MaterialPlugin::<MorpheusSphereMaterial>::default());
+        app.add_plugins(MaterialPlugin::<MorpheusUnionMaterial>::default());
 
         app.add_systems(Startup, populate_camera_and_lights);
         app.add_systems(Startup, populate_models);
@@ -29,7 +30,8 @@ impl Plugin for MorpheusPlugin {
 fn populate_models(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut morpheus_materials: ResMut<Assets<MorpheusBasicMaterial>>,
+    mut morpheus_sphere_materials: ResMut<Assets<MorpheusSphereMaterial>>,
+    mut morpheus_union_materials: ResMut<Assets<MorpheusUnionMaterial>>,
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
@@ -62,17 +64,22 @@ fn populate_models(
     ));
 
     let matcap_texture = asset_server.load("textures/matcap/583629_2E1810_765648_3C1C14-512px.png");
-    let basic_material = morpheus_materials.add(MorpheusBasicMaterial {
+    let sphere_material = morpheus_sphere_materials.add(MorpheusSphereMaterial {
+        matcap_texture: Some(matcap_texture.clone()),
+        alpha_mode: AlphaMode::Blend,
+    });
+    let union_material = morpheus_union_materials.add(MorpheusUnionMaterial {
         matcap_texture: Some(matcap_texture),
         alpha_mode: AlphaMode::Blend,
     });
     commands.spawn((
         Mesh3d(meshes.add(Mesh::from(Cuboid::new(2.0, 2.0, 2.0)))),
-        MeshMaterial3d(basic_material),
-        // MeshMaterial3d(materials.add(StandardMaterial {
-        //     base_color_texture: Some(images.add(make_texture())),
-        //     ..default()
-        // })),
+        MeshMaterial3d(sphere_material),
+        Transform::from_xyz(2.0, 0.0, 0.0),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(Mesh::from(Cuboid::new(2.0, 2.0, 2.0)))),
+        MeshMaterial3d(union_material),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 }
@@ -150,23 +157,47 @@ fn animate_camera(
 
 //////////////////////////////////////////////////////////////////////
 
-const SHADER_ASSET_PATH: &str = "shaders/morpheus/basic.wgsl";
+const SPHERE_SHADER_ASSET_PATH: &str = "shaders/morpheus/sphere.wgsl";
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
-struct MorpheusBasicMaterial {
+struct MorpheusSphereMaterial {
     #[texture(0)]
     #[sampler(1)]
     matcap_texture: Option<Handle<Image>>,
     alpha_mode: AlphaMode,
 }
 
-impl Material for MorpheusBasicMaterial {
+impl Material for MorpheusSphereMaterial {
     fn vertex_shader() -> ShaderRef {
-        SHADER_ASSET_PATH.into()
+        SPHERE_SHADER_ASSET_PATH.into()
     }
 
     fn fragment_shader() -> ShaderRef {
-        SHADER_ASSET_PATH.into()
+        SPHERE_SHADER_ASSET_PATH.into()
+    }
+
+    fn alpha_mode(&self) -> AlphaMode {
+        self.alpha_mode
+    }
+}
+
+const UNION_SHADER_ASSET_PATH: &str = "shaders/morpheus/union.wgsl";
+
+#[derive(Asset, TypePath, AsBindGroup, Clone)]
+struct MorpheusUnionMaterial {
+    #[texture(0)]
+    #[sampler(1)]
+    matcap_texture: Option<Handle<Image>>,
+    alpha_mode: AlphaMode,
+}
+
+impl Material for MorpheusUnionMaterial {
+    fn vertex_shader() -> ShaderRef {
+        UNION_SHADER_ASSET_PATH.into()
+    }
+
+    fn fragment_shader() -> ShaderRef {
+        UNION_SHADER_ASSET_PATH.into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {
