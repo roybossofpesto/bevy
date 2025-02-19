@@ -1,10 +1,7 @@
-// #import bevy_pbr::forward_io::VertexOutput
 #import bevy_pbr::{
     mesh_functions,
     view_transformations,
 }
-#import bevy_pbr::mesh_view_bindings as view_bindings
-
 
 @group(2) @binding(0) var color_texture: texture_2d<f32>;
 @group(2) @binding(1) var color_sampler: sampler;
