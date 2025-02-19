@@ -51,20 +51,15 @@ fn populate_tracks(
 
     info!("** populate_tracks **");
 
-    // let checkpoint_material = materials.add(StandardMaterial {
-    //     perceptual_roughness: 0.2,
-    //     base_color: Color::from(RED),
-    //     ..StandardMaterial::default()
-    // });
-    let checkpoint_material = materials.add(StandardMaterial {
+    let track0_ret = make_track_mesh(&TRACK0_DATA);
+    let track1_ret = make_track_mesh(&TRACK1_DATA);
+
+    // track 0 showcases flow parametrization
+    let checkpoint0_material = materials.add(StandardMaterial {
         base_color: Color::hsva(0.0, 0.8, 1.0, 0.8),
         alpha_mode: AlphaMode::Blend,
         ..StandardMaterial::default()
     });
-
-    // ColorMaterial
-
-    // track 0 showcases flow parametrization
     let track0_material = materials.add(StandardMaterial {
         base_color_channel: UvChannel::Uv0,
         base_color_texture: Some(asset_server.load_with_settings(
@@ -84,12 +79,12 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA).0)),
+        Mesh3d(meshes.add(track0_ret.0)),
         MeshMaterial3d(track0_material.clone()),
     ));
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK0_DATA).1)),
-        MeshMaterial3d(checkpoint_material),
+        Mesh3d(meshes.add(track0_ret.1)),
+        MeshMaterial3d(checkpoint0_material),
     ));
 
     // track 1 showcases projected parametrization
@@ -115,7 +110,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA).0)),
+        Mesh3d(meshes.add(track1_ret.0.clone())),
         MeshMaterial3d(track1_material),
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
@@ -124,7 +119,7 @@ fn populate_tracks(
     let track2_material = materials.add(make_wavy_material(&asset_server, 0.5));
     commands.spawn((
         WavyMarker,
-        Mesh3d(meshes.add(make_track_mesh(&TRACK1_DATA).0)),
+        Mesh3d(meshes.add(track1_ret.0)),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
@@ -137,35 +132,35 @@ fn populate_racing_lines(
     mut materials: ResMut<Assets<RacingLineMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    info!("** populate_track_dots **");
-
     use bevy::prelude::Transform;
 
+    info!("** populate_track_dots **");
+
+    let track0_ret = make_track_mesh(&TRACK0_DATA);
+    let track1_ret = make_track_mesh(&TRACK1_DATA);
+
     // track 3 showcases racing lines on track 0 data
-    let track3_mesh = make_track_mesh(&TRACK0_DATA);
-    let track3_material = make_racing_line_material(&asset_server, track3_mesh.2);
+    let track3_material = make_racing_line_material(&asset_server, track0_ret.2);
     commands.spawn((
-        Mesh3d(meshes.add(track3_mesh.0)),
+        Mesh3d(meshes.add(track0_ret.0)),
         MeshMaterial3d(materials.add(track3_material)),
         Transform::from_xyz(0.0, 1e-3, 0.0),
     ));
 
     // track 4 showcases racing lines on track 1 data
-    let track4_mesh = make_track_mesh(&TRACK1_DATA);
-    let track4_material = make_racing_line_material(&asset_server, track4_mesh.2);
+    let track4_material = make_racing_line_material(&asset_server, track1_ret.2);
     commands.spawn((
-        Mesh3d(meshes.add(track4_mesh.0)),
+        Mesh3d(meshes.add(track1_ret.0.clone())),
         MeshMaterial3d(materials.add(track4_material)),
         Transform::from_xyz(-1.0, 0.0, -2.0 + 1e-3),
     ));
 
     // track 5 showcases racing lines on track 1 data
-    let track5_mesh = make_track_mesh(&TRACK1_DATA);
-    let mut track5_material = make_racing_line_material(&asset_server, track5_mesh.2);
+    let mut track5_material = make_racing_line_material(&asset_server, track1_ret.2);
     track5_material.line_width = 0.5;
     track5_material.lateral_range = Vec2::new(-1.8, 0.8);
     commands.spawn((
-        Mesh3d(meshes.add(track5_mesh.0)),
+        Mesh3d(meshes.add(track1_ret.0)),
         MeshMaterial3d(materials.add(track5_material)),
         Transform::from_xyz(12.0, 1e-3, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),

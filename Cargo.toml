@@ -529,9 +529,14 @@ web-sys = { version = "0.3", features = ["Window"] }
 
 
 [[example]]
+name = "morpheus_viewer"
+path = "examples/mine/morpheus_viewer/main.rs"
+doc-scrape-examples = false
+
+[[example]]
 name = "offroad"
 path = "examples/mine/offroad/main.rs"
-doc-scrape-examples = true
+doc-scrape-examples = false
 
 [[example]]
 name = "lorentz"
