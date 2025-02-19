@@ -3,9 +3,8 @@
     view_transformations,
 }
 
-@group(2) @binding(0) var color_texture: texture_2d<f32>;
-@group(2) @binding(1) var color_sampler: sampler;
-@group(2) @binding(2) var<uniform> cursor_data: vec4<f32>;
+@group(2) @binding(0) var matcap_texture: texture_2d<f32>;
+@group(2) @binding(1) var matcap_sampler: sampler;
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
@@ -48,27 +47,28 @@ fn fragment(
         dist = signed_disance_function(pos);
     }
 
-    var color = textureSample(color_texture, color_sampler, out.uv);
-
-    if color.w == 0 && dist <= 1e-3 {
-        let hh = 1e-3;
-        let world_grad = normalize(vec3(
-            signed_disance_function(pos + vec3(hh, 0.0, 0.0)) - signed_disance_function(pos - vec3(hh, 0.0, 0.0)), 
-            signed_disance_function(pos + vec3(0.0, hh, 0.0)) - signed_disance_function(pos - vec3(0.0, hh, 0.0)), 
-            signed_disance_function(pos + vec3(0.0, 0.0, hh)) - signed_disance_function(pos - vec3(0.0, 0.0, hh)), 
-        ));
-        let view_grad = view_transformations::direction_world_to_view(world_grad);
-        let light_pos = vec3(-4.0, 16.0, 8.0);
-        var light_dir = light_pos - pos;
-        light_dir /= length(light_dir);
-        let shadow_factor = clamp(dot(world_grad, light_dir), 0.2, 1.0);
-        color = vec4((normalize(view_grad) + 1.0) / 2.0 * shadow_factor, 1.0);
+    if dist > 1e-3 {
+        return vec4(0.0);
     }
 
-    if length(out.uv - cursor_data.xy) < cursor_data.z {
-        color = vec4(1.0, 1.0, 0.0, 1.0);
-    }
+    let hh = 1e-3;
+    let world_grad = normalize(vec3(
+        signed_disance_function(pos + vec3(hh, 0.0, 0.0)) - signed_disance_function(pos - vec3(hh, 0.0, 0.0)), 
+        signed_disance_function(pos + vec3(0.0, hh, 0.0)) - signed_disance_function(pos - vec3(0.0, hh, 0.0)), 
+        signed_disance_function(pos + vec3(0.0, 0.0, hh)) - signed_disance_function(pos - vec3(0.0, 0.0, hh)), 
+    ));
+    let view_grad = normalize(view_transformations::direction_world_to_view(world_grad));
+    
+    var color = textureSample(matcap_texture, matcap_sampler, (view_grad.xy + 1.0) / 2.0);
 
+    /*
+    let light_pos = vec3(-4.0, 16.0, 8.0);
+    var light_dir = light_pos - pos;
+    light_dir /= length(light_dir);
+    let shadow_factor = clamp(dot(world_grad, light_dir), 0.2, 1.0);
+    color = vec4(color.xyz * shadow_factor, color.w);
+    */
+    
     return color;
 }
 

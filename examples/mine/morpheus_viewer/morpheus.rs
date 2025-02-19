@@ -21,7 +21,6 @@ impl Plugin for MorpheusPlugin {
         app.add_systems(Startup, populate_camera_and_lights);
         app.add_systems(Startup, populate_models);
         app.add_systems(Update, animate_camera);
-        app.add_systems(Update, animate_morpheus_basic_materials);
     }
 }
 
@@ -32,7 +31,7 @@ fn populate_models(
     mut meshes: ResMut<Assets<Mesh>>,
     mut morpheus_materials: ResMut<Assets<MorpheusBasicMaterial>>,
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
+    asset_server: Res<AssetServer>,
 ) {
     let tube = meshes.add(Mesh::from(Cylinder::new(0.1, 2.0)));
     commands.spawn((
@@ -62,9 +61,11 @@ fn populate_models(
             .with_rotation(Quat::from_axis_angle(Vec3::X, PI / 2.0)),
     ));
 
-    let basic_material = morpheus_materials.add(make_morpheus_basic_material(
-        images.add(make_debug_texture()),
-    ));
+    let matcap_texture = asset_server.load("textures/matcap/583629_2E1810_765648_3C1C14-512px.png");
+    let basic_material = morpheus_materials.add(MorpheusBasicMaterial {
+        matcap_texture: Some(matcap_texture),
+        alpha_mode: AlphaMode::Blend,
+    });
     commands.spawn((
         Mesh3d(meshes.add(Mesh::from(Cuboid::new(2.0, 2.0, 2.0)))),
         MeshMaterial3d(basic_material),
@@ -147,82 +148,7 @@ fn animate_camera(
     }
 }
 
-fn animate_morpheus_basic_materials(
-    material_handles: Query<&MeshMaterial3d<MorpheusBasicMaterial>>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut materials: ResMut<Assets<MorpheusBasicMaterial>>,
-) {
-    let mut delta = Vec2::ZERO;
-    if keyboard.just_pressed(KeyCode::KeyJ) {
-        delta.x -= 1.0;
-    }
-    if keyboard.just_pressed(KeyCode::KeyL) {
-        delta.x += 1.0;
-    }
-    if keyboard.just_pressed(KeyCode::KeyI) {
-        delta.y += 1.0;
-    }
-    if keyboard.just_pressed(KeyCode::KeyK) {
-        delta.y -= 1.0;
-    }
-    delta /= 10.0;
-    for material_handle in material_handles.iter() {
-        if let Some(material) = materials.get_mut(material_handle) {
-            material.cursor_data.x += delta.x;
-            material.cursor_data.y += delta.y;
-        }
-    }
-}
-
 //////////////////////////////////////////////////////////////////////
-
-fn make_debug_texture() -> Image {
-    use bevy::image::ImageSampler;
-    use bevy::render::render_asset::RenderAssetUsages;
-    use bevy::render::render_resource::Extent3d;
-    use bevy::render::render_resource::TextureDimension;
-    use bevy::render::render_resource::TextureFormat;
-
-    const TEXTURE_SIZE: usize = 64;
-
-    let uu_color: [u8; 4] = [255, 0, 0, 255];
-    let uu_color_: [u8; 4] = [0, 255, 255, 255];
-    let vv_color: [u8; 4] = [0, 255, 0, 255];
-    let vv_color_: [u8; 4] = [255, 0, 255, 255];
-
-    let mut texture_data = [0; TEXTURE_SIZE * TEXTURE_SIZE * 4];
-    texture_data.fill(0);
-
-    for ii in 0..TEXTURE_SIZE {
-        let offset = ii * 4;
-        let offset_ = ii * 4 + (TEXTURE_SIZE - 1) * TEXTURE_SIZE * 4;
-        texture_data[offset..(offset + 4)].copy_from_slice(&uu_color);
-        texture_data[offset_..(offset_ + 4)].copy_from_slice(&uu_color_);
-    }
-
-    for jj in 0..TEXTURE_SIZE {
-        let offset = TEXTURE_SIZE * jj * 4;
-        let offset_ = TEXTURE_SIZE * jj * 4 + (TEXTURE_SIZE - 1) * 4;
-        texture_data[offset..(offset + 4)].copy_from_slice(&vv_color);
-        texture_data[offset_..(offset_ + 4)].copy_from_slice(&vv_color_);
-    }
-
-    let mut image = Image::new_fill(
-        Extent3d {
-            width: TEXTURE_SIZE as u32,
-            height: TEXTURE_SIZE as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        &texture_data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-
-    image.sampler = ImageSampler::nearest();
-
-    image
-}
 
 const SHADER_ASSET_PATH: &str = "shaders/morpheus/basic.wgsl";
 
@@ -230,9 +156,7 @@ const SHADER_ASSET_PATH: &str = "shaders/morpheus/basic.wgsl";
 struct MorpheusBasicMaterial {
     #[texture(0)]
     #[sampler(1)]
-    color_texture: Option<Handle<Image>>,
-    #[uniform(2)]
-    cursor_data: Vec4,
+    matcap_texture: Option<Handle<Image>>,
     alpha_mode: AlphaMode,
 }
 
@@ -247,13 +171,5 @@ impl Material for MorpheusBasicMaterial {
 
     fn alpha_mode(&self) -> AlphaMode {
         self.alpha_mode
-    }
-}
-
-fn make_morpheus_basic_material(color_texture: Handle<Image>) -> MorpheusBasicMaterial {
-    MorpheusBasicMaterial {
-        color_texture: Some(color_texture),
-        cursor_data: Vec4::new(0.0, 0.0, 0.1, 0.0),
-        alpha_mode: AlphaMode::Blend,
     }
 }
