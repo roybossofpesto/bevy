@@ -421,40 +421,6 @@ struct t_outlet {
 	v_roughness: f32,
 }
 
-//// PROTOTYPES
-
-// fn operator-(a_a: vec3<f32>, a_b: vec3<f32>) -> vec3<f32>; // FID[0122] ComposeFuncType::Arithmetic sub3:(v3 a,v3 b)->(v3 o)
-// fn dot(a_a: vec3<f32>, a_b: vec3<f32>) -> f32; // FID[0034] ComposeFuncType::Builtin dot3:(v3 a,v3 b)->(sc o)
-// fn operator/(a_a: f32, a_b: f32) -> f32; // FID[0006] ComposeFuncType::Arithmetic div:(sc a,sc b)->(sc o)
-// fn operator*(a_a: vec3<f32>, a_b: f32) -> vec3<f32>; // FID[0118] ComposeFuncType::Arithmetic scale3:(v3 a,sc b)->(v3 o)
-// fn length(a_i: vec3<f32>) -> f32; // FID[0046] ComposeFuncType::Builtin length3:(v3 i)->(sc o)
-// fn operator+(a_a: vec3<f32>, a_b: vec3<f32>) -> vec3<f32>; // FID[0110] ComposeFuncType::Arithmetic add3:(v3 a,v3 b)->(v3 o)
-// fn clamp(a_x: f32, a_y: f32, a_z: f32) -> f32; // FID[0027] ComposeFuncType::Builtin clamp:(sc x,sc y,sc z)->(sc o)
-// fn min(a_a: f32, a_b: f32) -> f32; // FID[0056] ComposeFuncType::Builtin min:(sc a,sc b)->(sc o)
-// fn operator-(a_a: f32, a_b: f32) -> f32; // FID[0120] ComposeFuncType::Arithmetic sub:(sc a,sc b)->(sc o)
-// fn operator*(a_a: f32, a_b: f32) -> f32; // FID[0113] ComposeFuncType::Arithmetic mul:(sc a,sc b)->(sc o)
-// fn operator+(a_a: f32, a_b: f32) -> f32; // FID[0108] ComposeFuncType::Arithmetic add:(sc a,sc b)->(sc o)
-// fn pow(a_a: f32, a_b: f32) -> f32; // FID[0050] ComposeFuncType::Builtin pow:(sc a,sc b)->(sc o)
-// fn abs(a_i: vec2<f32>) -> vec2<f32>; // FID[0003] ComposeFuncType::Builtin abs2:(v2 i)->(v2 o)
-// fn mix(a_x: f32, a_y: f32, a_z: f32) -> f32; // FID[0021] ComposeFuncType::Builtin mix:(sc x,sc y,sc z)->(sc o)
-// fn abs(a_i: f32) -> f32; // FID[0004] ComposeFuncType::Builtin abs:(sc i)->(sc o)
-// fn round(a_i: f32) -> f32; // FID[0068] ComposeFuncType::Builtin round:(sc i)->(sc o)
-// fn max(a_a: f32, a_b: f32) -> f32; // FID[0053] ComposeFuncType::Builtin max:(sc a,sc b)->(sc o)
-// fn mix(a_x: vec3<f32>, a_y: vec3<f32>, a_z: vec3<f32>) -> vec3<f32>; // FID[0060] ComposeFuncType::Builtin mix3:(v3 x,v3 y,v3 z)->(v3 o)
-// fn noisePcg(a_i: f32) -> f32; // FID[0359] ComposeFuncType::Builtin noisePcg:(sc i)->(sc o)
-// fn ceil(a_i: f32) -> f32; // FID[0007] ComposeFuncType::Builtin ceil:(sc i)->(sc o)
-// fn opp(a_i: f32) -> f32; // FID[0018] ComposeFuncType::Builtin opp:(sc i)->(sc o)
-// fn operator*(a_a: vec3<f32>, a_b: vec3<f32>) -> vec3<f32>; // FID[0106] ComposeFuncType::Arithmetic mul3:(v3 a,v3 b)->(v3 o)
-// fn sin(a_i: f32) -> f32; // FID[0078] ComposeFuncType::Builtin sin:(sc i)->(sc o)
-// fn cos(a_i: f32) -> f32; // FID[0032] ComposeFuncType::Builtin cos:(sc i)->(sc o)
-// fn max(a_a: vec2<f32>, a_b: vec2<f32>) -> vec2<f32>; // FID[0048] ComposeFuncType::Builtin max2:(v2 a,v2 b)->(v2 o)
-// fn operator*(a_a: mat3x3<f32>, a_b: vec3<f32>) -> vec3<f32>; // FID[0112] ComposeFuncType::Arithmetic apply3:(m3 a,v3 b)->(v3 o)
-// fn length(a_i: vec2<f32>) -> f32; // FID[0045] ComposeFuncType::Builtin length2:(v2 i)->(sc o)
-// fn vmax2(a_i: vec2<f32>) -> f32; // FID[0072] ComposeFuncType::Builtin vmax2:(v2 i)->(sc o)
-// fn operator-(a_a: vec2<f32>, a_b: vec2<f32>) -> vec2<f32>; // FID[0121] ComposeFuncType::Arithmetic sub2:(v2 a,v2 b)->(v2 o)
-// fn operator/(a_a: vec3<f32>, a_b: vec3<f32>) -> vec3<f32>; // FID[0022] ComposeFuncType::Arithmetic div3:(v3 a,v3 b)->(v3 o)
-// fn compute_main_digraph(a_pos: vec3<f32>) -> t_outlet; // MAIN FID[0311] ComposeFuncType::Terminal main:(v3 pos)->(sc dist,v3 basecolor,sc roughness)
-
 //// INSTANCES
 
 const u_seq_1: t_seq_1 = t_seq_1(f32(1.5), f32(2.8), f32(1.5));
