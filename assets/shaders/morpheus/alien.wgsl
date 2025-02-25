@@ -62,14 +62,6 @@ fn fragment(
     let view_grad = normalize(view_transformations::direction_world_to_view(world_grad));
     
     var color = textureSample(matcap_texture, matcap_sampler, (view_grad.xy + 1.0) / 2.0);
-
-    /*
-    let light_pos = vec3(-4.0, 16.0, 8.0);
-    var light_dir = light_pos - pos;
-    light_dir /= length(light_dir);
-    let shadow_factor = clamp(dot(world_grad, light_dir), 0.2, 1.0);
-    color = vec4(color.xyz * shadow_factor, color.w);
-    */
     
     return color;
 }
@@ -79,6 +71,8 @@ fn signed_disance_function(pos: vec3<f32>) -> f32 {
 }
 
 //// BUILTINS
+
+fn inverseSqrt(vv: f32) -> f32 { return 1.0 / sqrt(vv); }
 
 fn opp(vv: f32) -> f32 { return -vv; }
 
@@ -90,180 +84,173 @@ fn vmax2(vv: vec2<f32>) -> f32 { return max(vv.x, vv.y); }
 fn vmax3(vv: vec3<f32>) -> f32 { return max(max(vv.x, vv.y), vv.z); }
 fn vmax4(vv: vec4<f32>) -> f32 { return max(max(vv.x, vv.y), max(vv.z, vv.w)); }
 
-/*
-
 // According to the Kronos documentation, the fract of the input is computing
 // in this way 'x-floor(x)' which result to wrong results with negative values.
-float fractOfPositiveAndNegativeValue(float vv) {
-  return vv < 0.0 ? vv - ceil(vv) : vv - floor(vv);
+fn fractOfPositiveAndNegativeValue(vv: f32) -> f32 {
+    if (vv < 0.0) {
+        return vv - ceil(vv);
+    } else {
+        return vv - floor(vv);
+    };
 }
-vec2 fractOfPositiveAndNegativeValue(vec2 vv) {
-  return vec2(
-    fractOfPositiveAndNegativeValue(vv.x),
-    fractOfPositiveAndNegativeValue(vv.y));
+fn fractOfPositiveAndNegativeValue2(vv: vec2<f32>) -> vec2<f32> {
+    return vec2(
+        fractOfPositiveAndNegativeValue(vv.x),
+        fractOfPositiveAndNegativeValue(vv.y));
 }
-vec3 fractOfPositiveAndNegativeValue(vec3 vv) {
-  return vec3(
-    fractOfPositiveAndNegativeValue(vv.x),
-    fractOfPositiveAndNegativeValue(vv.y),
-    fractOfPositiveAndNegativeValue(vv.z));
+fn fractOfPositiveAndNegativeValue3(vv: vec3<f32>) -> vec3<f32> {
+    return vec3(
+        fractOfPositiveAndNegativeValue(vv.x),
+        fractOfPositiveAndNegativeValue(vv.y),
+        fractOfPositiveAndNegativeValue(vv.z));
 }
-vec4 fractOfPositiveAndNegativeValue(vec4 vv) {
-  return vec4(
-    fractOfPositiveAndNegativeValue(vv.x),
-    fractOfPositiveAndNegativeValue(vv.y),
-    fractOfPositiveAndNegativeValue(vv.z),
-    fractOfPositiveAndNegativeValue(vv.w));
+fn fractOfPositiveAndNegativeValue4(vv: vec4<f32>) -> vec4<f32> {
+    return vec4(
+        fractOfPositiveAndNegativeValue(vv.x),
+        fractOfPositiveAndNegativeValue(vv.y),
+        fractOfPositiveAndNegativeValue(vv.z),
+        fractOfPositiveAndNegativeValue(vv.w));
 }
+
 
 // https://www.shadertoy.com/view/4dS3Wd
-float hash(float p) {
-  p = fract(p * 0.011);
-  p *= p + 7.5;
-  p *= p + p;
-  return fract(p);
+fn hash(q: f32) -> f32 {
+    var p = fract(q * 0.011);
+    p *= p + 7.5;
+    p *= p + p;
+    return fract(p);
 }
-float hash(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.13);
-  p3 += dot(p3, p3.yzx + 3.333);
-  return fract((p3.x + p3.y) * p3.z);
+fn hash2(q: vec2<f32>) -> f32 {
+    var p3 = fract(q.xyx) * 0.13;
+    p3 += dot(p3, p3.yzx + 3.333);
+    return fract((p3.x + p3.y) * p3.z);
 }
-float noise(float x) {
-  float i = floor(x);
-  float f = fract(x);
-  float u = f * f * (3.0 - 2.0 * f);
-  return mix(hash(i), hash(i + 1.0), u);
+fn noise(x: f32) -> f32 {
+    let i = floor(x);
+    let f = fract(x);
+    let u = f * f * (3.0 - 2.0 * f);
+    return mix(hash(i), hash(i + 1.0), u);
 }
-float noise(vec2 x) {
-  vec2 i = floor(x);
-  vec2 f = fract(x);
-  float a = hash(i);
-  float b = hash(i + vec2(1.0, 0.0));
-  float c = hash(i + vec2(0.0, 1.0));
-  float d = hash(i + vec2(1.0, 1.0));
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+fn noise2(x: vec2<f32>) -> f32 {
+    let i = floor(x);
+    let f = fract(x);
+    let a = hash2(i);
+    let b = hash2(i + vec2(1.0, 0.0));
+    let c = hash2(i + vec2(0.0, 1.0));
+    let d = hash2(i + vec2(1.0, 1.0));
+    let u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 }
-float noise(vec3 x) {
-  const vec3 step = vec3(110, 241, 171);
-  vec3 i = floor(x);
-  vec3 f = fract(x);
-  float n = dot(i, step);
-  vec3 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix( hash(n + dot(step, vec3(0, 0, 0))), hash(n + dot(step, vec3(1, 0, 0))), u.x),
-                 mix( hash(n + dot(step, vec3(0, 1, 0))), hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y),
-             mix(mix( hash(n + dot(step, vec3(0, 0, 1))), hash(n + dot(step, vec3(1, 0, 1))), u.x),
-                 mix( hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
-}
-
-float fbm(float x, float octaves) {
-  float v = 0.0;
-  float a = 0.5;
-  float shift = float(100);
-  int num_octaves = int(octaves);
-  for (int i = 0; i < num_octaves; ++i) {
-    v += a * noise(x);
-    x = x * 2.0 + shift;
-    a *= 0.5;
-  }
-  return v;
-}
-float fbm(vec2 x, float octaves) {
-  float v = 0.0;
-  float a = 0.5;
-  vec2 shift = vec2(100);
-  mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
-  int num_octaves = int(octaves);
-  for (int i = 0; i < num_octaves; ++i) {
-    v += a * noise(x);
-    x = rot * x * 2.0 + shift;
-    a *= 0.5;
-  }
-  return v;
-}
-float fbm(vec3 x, float octaves) {
-  float v = 0.0;
-  float a = 0.5;
-  vec3 shift = vec3(100);
-  int num_octaves = int(octaves);
-  for (int i = 0; i < num_octaves; ++i) {
-    v += a * noise(x);
-    x = x * 2.0 + shift;
-    a *= 0.5;
-  }
-  return v;
+fn noise3(x: vec3<f32>) -> f32 {
+    const step = vec3(110.0, 241.0, 171.0);
+    let i = floor(x);
+    let f = fract(x);
+    let n = dot(i, step);
+    let u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(n + dot(step, vec3(0.0, 0.0, 0.0))), hash(n + dot(step, vec3(1.0, 0.0, 0.0))), u.x),
+                   mix(hash(n + dot(step, vec3(0.0, 1.0, 0.0))), hash(n + dot(step, vec3(1.0, 1.0, 0.0))), u.x), u.y),
+               mix(mix(hash(n + dot(step, vec3(0.0, 0.0, 1.0))), hash(n + dot(step, vec3(1.0, 0.0, 1.0))), u.x),
+                   mix(hash(n + dot(step, vec3(0.0, 1.0, 1.0))), hash(n + dot(step, vec3(1.0, 1.0, 1.0))), u.x), u.y), u.z);
 }
 
-*/
+fn fbm(x_: f32, octaves: f32) -> f32 {
+    const shift = 100.0;
+    let num_octaves = i32(octaves);
+    var v = 0.0;
+    var a = 0.5;
+    var x = x_;
+    for (var i: i32 = 0; i < num_octaves; i++) {
+        v += a * noise(x);
+        x = x * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
+}
+fn fbm2(x_: vec2<f32>, octaves: f32) -> f32 {
+    const shift = vec2(100.0);
+    const rot = mat2x2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+    let num_octaves = i32(octaves);
+    var v = 0.0;
+    var a = 0.5;
+    var x = x_;
+    for (var i: i32 = 0; i < num_octaves; i++) {
+        v += a * noise2(x);
+        x = rot * x * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
+}
+fn fbm3(x_: vec3<f32>, octaves: f32) -> f32 {
+    const shift = vec3(100.0);
+    let num_octaves = i32(octaves);
+    var v = 0.0;
+    var a = 0.5;
+    var x = x_;
+    for (var i: i32 = 0; i < num_octaves; i++) {
+        v += a * noise3(x);
+        x = x * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
+}
 
 // https://www.pcg-random.org/
 fn noisePcg(q: f32) -> f32 {
     let v = u32(round(q));
-	let state = v * 747796405u + 2891336453u;
-	let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-	return f32(f32((word >> 22u) ^ word) * (1.0/f32(0xffffffffu))) ;
+    let state = v * 747796405u + 2891336453u;
+    let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return f32(f32((word >> 22u) ^ word) * (1.0/f32(0xffffffffu))) ;
 }
-
-/*
 // http://www.jcgt.org/published/0009/03/02/
 // https://www.shadertoy.com/view/XlGcRh  
-vec2 noisePcg(vec2 q){
-  uvec2 v = uvec2(q);
-  v = v * 1664525u + 1013904223u;
-
-  v.x += v.y * 1664525u;
-  v.y += v.x * 1664525u;
-
-  v = v ^ (v>>16u);
-
-  v.x += v.y * 1664525u;
-  v.y += v.x * 1664525u;
-
-  v = v ^ (v>>16u);
-
-  return vec2(vec2(v)* (1.0/float(0xffffffffu)));
+fn noisePcg2(q: vec2<f32>) -> vec2<f32> {
+    var v = vec2u(q);
+    v = v * 1664525u + 1013904223u;
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v.x = v.x ^ (v.x >> 16u);
+    v.y = v.y ^ (v.y >> 16u);
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v.x = v.x ^ (v.x >> 16u);
+    v.y = v.y ^ (v.y >> 16u);
+    return vec2f(v) / f32(0xffffffffu);
 }
-
 // http://www.jcgt.org/published/0009/03/02/
 // https://www.shadertoy.com/view/XlGcRh
-vec3 noisePcg(vec3 q){
-  uvec3 v = uvec3(q);
-  v = v * 1664525u + 1013904223u;
-  v.x += v.y*v.z;
-  v.y += v.z*v.x;
-  v.z += v.x*v.y;
-
-  v ^= v >> 16u;
-
-  v.x += v.y*v.z;
-  v.y += v.z*v.x;
-  v.z += v.x*v.y;
-  
-  return vec3(vec3(v) * (1.0/float(0xffffffffu)));
+fn noisePcg3(q: vec3<f32>) -> vec3<f32> {
+    var v = vec3u(q);
+    v = v * 1664525u + 1013904223u;
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    v.x = v.x ^ (v.x >> 16u);
+    v.y = v.y ^ (v.y >> 16u);
+    v.z = v.z ^ (v.z >> 16u);
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    return vec3f(v) / f32(0xffffffffu);
 }
-
 // http://www.jcgt.org/published/0009/03/02/
 // https://www.shadertoy.com/view/XlGcRh
-vec4 noisePcg(vec4 q){
-  uvec4 v = uvec4(q);
-  v = v * 1664525u + 1013904223u;
-  
-  v.x += v.y*v.w;
-  v.y += v.z*v.x;
-  v.z += v.x*v.y;
-  v.w += v.y*v.z;
-  
-  v ^= v >> 16u;
-  
-  v.x += v.y*v.w;
-  v.y += v.z*v.x;
-  v.z += v.x*v.y;
-  v.w += v.y*v.z;
-  
-  return vec4(vec4(v) * (1.0/float(0xffffffffu)));
+fn noisePcg4(q: vec4<f32>) -> vec4<f32> {
+    var v = vec4u(q);
+    v = v * 1664525u + 1013904223u;
+    v.x += v.y * v.w;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    v.w += v.y * v.z;
+    v.x = v.x ^ (v.x >> 16u);
+    v.y = v.y ^ (v.y >> 16u);
+    v.z = v.z ^ (v.z >> 16u);
+    v.w = v.w ^ (v.w >> 16u);
+    v.x += v.y * v.w;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    v.w += v.y * v.z;
+    return vec4f(v) / f32(0xffffffffu);
 }
-
-*/
 
 
 //// CUSTOM TYPES
