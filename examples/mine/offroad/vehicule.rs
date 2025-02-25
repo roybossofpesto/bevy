@@ -14,6 +14,7 @@ impl Plugin for VehiculePlugin {
 
         app.add_systems(Startup, setup_vehicule);
         app.add_systems(Update, update_vehicule_physics);
+        app.add_systems(Update, update_checkpoints);
     }
     // fn finish(&self, app: &mut App) {
     //     info!("** simu_finish **");
@@ -94,6 +95,11 @@ fn setup_vehicule(
     ));
 }
 
+fn update_checkpoints(query: Query<&BoatData>, tracks: Res<Assets<crate::track::Track>>) {
+    let track = tracks.get(&crate::track::TRACK0_HANDLE).unwrap();
+    assert!(track.is_looping);
+}
+
 fn update_vehicule_physics(
     mut query: Query<(&mut BoatData, &mut Transform)>,
     time: Res<Time>,
@@ -111,12 +117,12 @@ fn update_vehicule_physics(
     impl BoatPhysics {
         fn from_dt(dt: f32) -> Self {
             Self {
-                mass: 100.0, // kg
+                mass: 100.0,                      // kg
                 friction: Vec2::new(5e-2, 10e-3), // 0 <= f < 1
-                thrust: 500.0, // m / s^2 / kg ~ N
-                turning_speed: PI / 2.0, // rad / s
-                force: Vec2::ZERO, // m / s^2 /kg ~ N
-                dt, // s
+                thrust: 500.0,                    // m / s^2 / kg ~ N
+                turning_speed: PI / 2.0,          // rad / s
+                force: Vec2::ZERO,                // m / s^2 /kg ~ N
+                dt,                               // s
             }
         }
     }

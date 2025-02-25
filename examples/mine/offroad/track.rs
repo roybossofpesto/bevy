@@ -1,4 +1,4 @@
-use bevy::asset::{Asset, AssetServer, Assets};
+use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
 use bevy::math::NormedVectorSpace;
 use bevy::math::{Mat3, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
@@ -23,8 +23,10 @@ pub struct TrackPlugin;
 
 impl bevy::prelude::Plugin for TrackPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        use bevy::prelude::{MaterialPlugin, Startup, Update};
+        use bevy::prelude::{MaterialPlugin, PreStartup, Startup, Update};
+        app.init_asset::<Track>();
         app.add_plugins(MaterialPlugin::<RacingLineMaterial>::default());
+        app.add_systems(PreStartup, prepare_tracks);
         app.add_systems(Startup, populate_tracks);
         app.add_systems(Startup, populate_racing_lines);
         app.add_systems(Update, animate_wavy_materials);
@@ -34,10 +36,20 @@ impl bevy::prelude::Plugin for TrackPlugin {
 
 //////////////////////////////////////////////////////////////////////
 
+pub const TRACK0_HANDLE: Handle<Track> = weak_handle!("1347c9b7-c46a-48e7-0000-023a354b7cac");
+pub const TRACK1_HANDLE: Handle<Track> = weak_handle!("1347c9b7-c46a-48e7-1111-023a354b7cac");
+
+fn prepare_tracks(mut tracks: ResMut<Assets<Track>>) {
+    info!("** prepare_tracks **");
+    tracks.insert(&TRACK0_HANDLE, prepare_track(&TRACK0_DATA));
+    tracks.insert(&TRACK1_HANDLE, prepare_track(&TRACK1_DATA));
+}
+
 fn populate_tracks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    tracks: Res<Assets<Track>>,
     asset_server: Res<AssetServer>,
 ) {
     use bevy::color::Color;
@@ -51,8 +63,8 @@ fn populate_tracks(
 
     info!("** populate_tracks **");
 
-    let track0_ret = make_track_meshes(&TRACK0_DATA);
-    let track1_ret = make_track_meshes(&TRACK1_DATA);
+    let track0 = tracks.get(&TRACK0_HANDLE).unwrap();
+    let track1 = tracks.get(&TRACK1_HANDLE).unwrap();
 
     // track 0 showcases flow parametrization
     let checkpoint0_material = materials.add(StandardMaterial {
@@ -61,7 +73,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(track0_ret.checkpoint)),
+        Mesh3d(meshes.add(track0.checkpoint.clone())),
         MeshMaterial3d(checkpoint0_material),
     ));
     let track0_material = materials.add(StandardMaterial {
@@ -83,7 +95,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(track0_ret.track)),
+        Mesh3d(meshes.add(track0.track.clone())),
         MeshMaterial3d(track0_material.clone()),
     ));
 
@@ -110,7 +122,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(track1_ret.track.clone())),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(track1_material),
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
@@ -119,7 +131,7 @@ fn populate_tracks(
     let track2_material = materials.add(make_wavy_material(&asset_server, 0.5));
     commands.spawn((
         WavyMarker,
-        Mesh3d(meshes.add(track1_ret.track)),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
@@ -130,37 +142,38 @@ fn populate_racing_lines(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<RacingLineMaterial>>,
+    tracks: Res<Assets<Track>>,
     asset_server: Res<AssetServer>,
 ) {
     use bevy::prelude::Transform;
 
     info!("** populate_track_dots **");
 
-    let track0_ret = make_track_meshes(&TRACK0_DATA);
-    let track1_ret = make_track_meshes(&TRACK1_DATA);
+    let track0 = tracks.get(&TRACK0_HANDLE).unwrap();
+    let track1 = tracks.get(&TRACK1_HANDLE).unwrap();
 
     // track 3 showcases racing lines on track 0 data
-    let track3_material = make_racing_line_material(&asset_server, track0_ret.total_length);
+    let track3_material = make_racing_line_material(&asset_server, track0.total_length);
     commands.spawn((
-        Mesh3d(meshes.add(track0_ret.track)),
+        Mesh3d(meshes.add(track0.track.clone())),
         MeshMaterial3d(materials.add(track3_material)),
         Transform::from_xyz(0.0, 1e-3, 0.0),
     ));
 
     // track 4 showcases racing lines on track 1 data
-    let track4_material = make_racing_line_material(&asset_server, track1_ret.total_length);
+    let track4_material = make_racing_line_material(&asset_server, track1.total_length);
     commands.spawn((
-        Mesh3d(meshes.add(track1_ret.track.clone())),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(materials.add(track4_material)),
         Transform::from_xyz(-1.0, 0.0, -2.0 + 1e-3),
     ));
 
     // track 5 showcases racing lines on track 1 data
-    let mut track5_material = make_racing_line_material(&asset_server, track1_ret.total_length);
+    let mut track5_material = make_racing_line_material(&asset_server, track1.total_length);
     track5_material.line_width = 0.5;
     track5_material.lateral_range = Vec2::new(-1.8, 0.8);
     commands.spawn((
-        Mesh3d(meshes.add(track1_ret.track)),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(materials.add(track5_material)),
         Transform::from_xyz(12.0, 1e-3, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
@@ -431,14 +444,15 @@ struct TrackData {
     num_segments: u32,
 }
 
-struct TrackReturn {
-    track: Mesh,
-    checkpoint: Mesh,
-    total_length: f32,
-    is_looping: bool,
+#[derive(Asset, TypePath)]
+pub struct Track {
+    pub track: Mesh,
+    pub checkpoint: Mesh,
+    pub total_length: f32,
+    pub is_looping: bool,
 }
 
-fn make_track_meshes(track_data: &TrackData) -> TrackReturn {
+fn prepare_track(track_data: &TrackData) -> Track {
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -669,7 +683,7 @@ fn make_track_meshes(track_data: &TrackData) -> TrackReturn {
     track = track.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, track_pqs);
     track = track.with_generated_tangents().unwrap();
 
-    TrackReturn {
+    Track {
         track,
         checkpoint,
         total_length: current_length,
