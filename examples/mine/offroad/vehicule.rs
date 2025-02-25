@@ -68,20 +68,27 @@ fn setup_vehicule(
 ) {
     info!("** setup_vehicule **");
 
-    // get a specific mesh
     // let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.gltf#Mesh0/Primitive0");
-    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
     // let my_mesh: Handle<Mesh> = server.load("models/animated/Fox.glb");
+    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
 
     commands.spawn((
         Mesh3d(my_mesh.clone()),
-        MeshMaterial3d(materials.add(Color::from(YELLOW))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::from(YELLOW),
+            alpha_mode: AlphaMode::Blend,
+            ..StandardMaterial::default()
+        })),
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::One),
     ));
     commands.spawn((
         Mesh3d(my_mesh),
-        MeshMaterial3d(materials.add(Color::from(PURPLE))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::from(PURPLE),
+            alpha_mode: AlphaMode::Blend,
+            ..StandardMaterial::default()
+        })),
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::Two),
     ));

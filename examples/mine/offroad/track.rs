@@ -675,7 +675,7 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
 
 //////////////////////////////////////////////////////////////////////
 
-static TRACK0_PIECES: [TrackPiece; 21] = [
+static TRACK0_PIECES: [TrackPiece; 22] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
@@ -694,6 +694,7 @@ static TRACK0_PIECES: [TrackPiece; 21] = [
     TrackPiece::Checkpoint(5),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Checkpoint(6),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(3.0)),
     TrackPiece::Finish,
