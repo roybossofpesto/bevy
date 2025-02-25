@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 
 use bevy::color::palettes::basic::PURPLE;
@@ -37,7 +39,11 @@ struct BoatData {
     position_prev: [f32; 2],
     position_current: [f32; 2],
     angle_current: f32,
+    crossed_checkpoints: HashSet<u8>,
 }
+
+#[derive(Component)]
+struct StatusMarker;
 
 impl BoatData {
     fn from_player(player: Player) -> Self {
@@ -49,12 +55,14 @@ impl BoatData {
                 position_prev: POS_P1.xz().into(),
                 position_current: POS_P1.xz().into(),
                 angle_current: PI,
+                crossed_checkpoints: HashSet::new(),
             },
             Player::Two => BoatData {
                 player: Player::Two,
                 position_prev: POS_P2.xz().into(),
                 position_current: POS_P2.xz().into(),
                 angle_current: PI,
+                crossed_checkpoints: HashSet::new(),
             },
         }
     }
@@ -93,11 +101,35 @@ fn setup_vehicule(
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::Two),
     ));
+
+    commands.spawn((
+        StatusMarker,
+        Text::new("status"),
+        TextFont {
+            font_size: 24.0,
+            ..default()
+        },
+    ));
 }
 
-fn update_checkpoints(query: Query<&BoatData>, tracks: Res<Assets<crate::track::Track>>) {
+fn update_checkpoints(
+    mut boat_query: Query<&mut BoatData>,
+    mut status_query: Query<&mut Text, With<StatusMarker>>,
+    tracks: Res<Assets<crate::track::Track>>,
+) {
     let track = tracks.get(&crate::track::TRACK0_HANDLE).unwrap();
     assert!(track.is_looping);
+
+    for mut boat_data in &mut boat_query {
+        info!("dksjf {:?}", boat_data.position_current);
+        for (index, (aa, bb)) in track.checkpoint_to_segments.iter() {}
+    }
+
+    let Ok(mut status) = status_query.get_single_mut() else {
+        return;
+    };
+
+    *status = format!("p1 {} p2 {}", 12, 456).into();
 }
 
 fn update_vehicule_physics(

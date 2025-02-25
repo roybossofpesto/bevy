@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
 use bevy::math::NormedVectorSpace;
 use bevy::math::{Mat3, Quat, Vec2, Vec3};
@@ -450,6 +452,7 @@ pub struct Track {
     pub checkpoint: Mesh,
     pub total_length: f32,
     pub is_looping: bool,
+    pub checkpoint_to_segments: HashMap<u8, (Vec2, Vec2)>,
 }
 
 fn prepare_track(track_data: &TrackData) -> Track {
@@ -493,6 +496,21 @@ fn prepare_track(track_data: &TrackData) -> Track {
         checkpoint_triangles.append(&mut tri_bb);
         next_vertex
     };
+
+    let mut checkpoint_to_segments: HashMap<u8, (Vec2, Vec2)> = HashMap::new();
+    let mut push_checkpoint_segment =
+        |position: &Vec3, forward: &Vec3, left: f32, right: f32, index: u8| -> () {
+            let righthand = forward.cross(track_data.initial_up);
+            let aa = position + righthand * left;
+            let bb = position + righthand * right;
+            let proj = Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
+                .transpose();
+            let aa_ = proj * (aa - track_data.initial_position);
+            let bb_ = proj * (bb - track_data.initial_position);
+            assert!(f32::abs(aa_.z) < 1e-5);
+            assert!(f32::abs(bb_.z) < 1e-5);
+            checkpoint_to_segments.insert(index, (aa_.xy(), bb_.xy()));
+        };
 
     let mut track_positions: Vec<Vec3> = vec![];
     let mut track_normals: Vec<Vec3> = vec![];
@@ -643,6 +661,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     -current_right,
                     -current_left,
                 );
+                push_checkpoint_segment(
+                    &current_position,
+                    &current_forward,
+                    current_left,
+                    current_right,
+                    index.clone(),
+                );
             }
         }
     }
@@ -688,6 +713,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
         checkpoint,
         total_length: current_length,
         is_looping,
+        checkpoint_to_segments,
     }
 }
 
