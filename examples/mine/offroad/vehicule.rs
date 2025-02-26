@@ -86,7 +86,6 @@ fn setup_vehicules(
         Mesh3d(my_mesh.clone()),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::from(YELLOW),
-            alpha_mode: AlphaMode::Blend,
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
@@ -96,7 +95,6 @@ fn setup_vehicules(
         Mesh3d(my_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::from(PURPLE),
-            alpha_mode: AlphaMode::Blend,
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),

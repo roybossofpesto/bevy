@@ -71,7 +71,7 @@ fn populate_tracks(
     // track 0 showcases flow parametrization
     let checkpoint0_material = materials.add(StandardMaterial {
         base_color: Color::hsva(0.0, 0.8, 1.0, 0.8),
-        alpha_mode: AlphaMode::Blend,
+        // alpha_mode: AlphaMode::Blend, FIXME buggy
         ..StandardMaterial::default()
     });
     commands.spawn((
@@ -349,7 +349,6 @@ fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMa
         )),
         parallax_depth_scale: 0.1,
         uv_transform: Affine2::from_scale(Vec2::ONE * scale),
-        alpha_mode: AlphaMode::Blend,
         ..StandardMaterial::default()
     }
 }
