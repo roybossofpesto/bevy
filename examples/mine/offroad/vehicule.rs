@@ -1,3 +1,5 @@
+use kd_tree::{KdPoint, KdTree};
+
 use bevy::prelude::*;
 
 use bevy::color::palettes::basic::PURPLE;
@@ -14,6 +16,7 @@ impl Plugin for VehiculePlugin {
 
         app.add_systems(Startup, setup_vehicule);
         app.add_systems(Update, update_vehicule_physics);
+        app.add_systems(Update, bump_vehicules);
     }
     // fn finish(&self, app: &mut App) {
     //     info!("** simu_finish **");
@@ -24,13 +27,13 @@ impl Plugin for VehiculePlugin {
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Player {
     One,
     Two,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Debug)]
 struct BoatData {
     player: Player,
     position_prev: [f32; 2],
@@ -59,6 +62,9 @@ impl BoatData {
     }
 }
 
+#[derive(Component)]
+struct LabelMarker;
+
 fn setup_vehicule(
     mut commands: Commands,
     // mut images: ResMut<Assets<Image>>,
@@ -85,6 +91,44 @@ fn setup_vehicule(
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::Two),
     ));
+
+    commands.spawn((
+        Text("coucou".into()),
+        TextFont {
+            font_size: 22.0,
+            ..default()
+        },
+        LabelMarker,
+    ));
+}
+
+impl KdPoint for BoatData {
+    type Scalar = f32;
+    type Dim = typenum::U2; // 2 dimensional tree.
+    fn at(&self, k: usize) -> f32 {
+        self.position_current[k]
+    }
+}
+
+fn bump_vehicules(boats: Query<&BoatData>, mut labels: Query<&mut Text, With<LabelMarker>>) {
+    if boats.is_empty() {
+        return;
+    }
+
+    let mut items: Vec<BoatData> = vec![];
+    for boat in boats {
+        items.push(boat.clone());
+    }
+
+    let kdtree: KdTree<BoatData> = KdTree::build_by_ordered_float(items);
+
+    let foo = kdtree.nearest(&[0.0, 2.0]).unwrap();
+
+    let Ok(mut label) = labels.get_single_mut() else {
+        return;
+    };
+
+    **label = format!("kdtree {:?} {:.02e}", foo.item.player, foo.squared_distance).into();
 }
 
 fn update_vehicule_physics(
@@ -104,12 +148,12 @@ fn update_vehicule_physics(
     impl BoatPhysics {
         fn from_dt(dt: f32) -> Self {
             Self {
-                mass: 100.0, // kg
+                mass: 100.0,                      // kg
                 friction: Vec2::new(5e-2, 10e-3), // 0 <= f < 1
-                thrust: 500.0, // m / s^2 / kg ~ N
-                turning_speed: PI / 2.0, // rad / s
-                force: Vec2::ZERO, // m / s^2 /kg ~ N
-                dt, // s
+                thrust: 500.0,                    // m / s^2 / kg ~ N
+                turning_speed: PI / 2.0,          // rad / s
+                force: Vec2::ZERO,                // m / s^2 /kg ~ N
+                dt,                               // s
             }
         }
     }
