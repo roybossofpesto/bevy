@@ -10,7 +10,6 @@ use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 
 use bevy::prelude::Vec3Swizzles;
 use bevy::prelude::{debug, info, warn};
-use bevy::prelude::{ButtonInput, KeyCode};
 use bevy::prelude::{Commands, Component, Handle, Query, Res, ResMut, Time, With};
 use bevy::prelude::{Mesh3d, MeshMaterial3d};
 
@@ -191,7 +190,7 @@ const SHADER_ASSET_PATH: &str = "shaders/offroad/racing_line_material.wgsl";
 
 // This struct defines the data that will be passed to your shader
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-struct RacingLineMaterial {
+pub struct RacingLineMaterial {
     #[texture(0)]
     #[sampler(1)]
     color_texture: Option<Handle<bevy::image::Image>>,
@@ -206,7 +205,7 @@ struct RacingLineMaterial {
     #[uniform(6)]
     time: f32,
     #[uniform(7)]
-    cursor_position: Vec2,
+    pub cursor_position: Vec2,
     #[uniform(8)]
     cursor_radius: f32,
     #[uniform(9)]
@@ -244,8 +243,6 @@ fn make_racing_line_material(
         cursor_radius: 0.5,
         color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
-            // "branding/icon.png",
-            // "textures/parallax_example/cube_color.png",
             "textures/slice_square.png",
             |settings: &mut ImageLoaderSettings| {
                 *settings = ImageLoaderSettings {
@@ -263,28 +260,13 @@ fn make_racing_line_material(
 }
 
 fn animate_racing_line_materials(
+    mut materials: ResMut<Assets<RacingLineMaterial>>,
     material_handles: Query<&MeshMaterial3d<RacingLineMaterial>>,
     time: Res<Time>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut materials: ResMut<Assets<RacingLineMaterial>>,
 ) {
-    let mut delta = Vec2::ZERO;
-    if keyboard.just_pressed(KeyCode::KeyJ) {
-        delta.x -= 1.0;
-    }
-    if keyboard.just_pressed(KeyCode::KeyL) {
-        delta.x += 1.0;
-    }
-    if keyboard.just_pressed(KeyCode::KeyI) {
-        delta.y += 1.0;
-    }
-    if keyboard.just_pressed(KeyCode::KeyK) {
-        delta.y -= 1.0;
-    }
     for material_handle in material_handles.iter() {
         if let Some(material) = materials.get_mut(material_handle) {
             material.time += time.delta_secs();
-            material.cursor_position += delta;
         }
     }
 }

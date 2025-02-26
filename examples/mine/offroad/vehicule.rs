@@ -202,7 +202,9 @@ fn resolve_checkpoints(
 }
 
 fn update_vehicule_physics(
-    mut query: Query<(&mut BoatData, &mut Transform)>,
+    mut boats: Query<(&mut BoatData, &mut Transform)>,
+    mut materials: ResMut<Assets<track::RacingLineMaterial>>,
+    material_handles: Query<&MeshMaterial3d<track::RacingLineMaterial>>,
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
@@ -240,23 +242,23 @@ fn update_vehicule_physics(
     }
 
     let dt = time.delta_secs();
-    for (mut data, mut transform) in &mut query {
+    for (mut boat, mut transform) in &mut boats {
         if keyboard.just_pressed(KeyCode::KeyR) {
-            let player = data.player.clone();
-            *data = BoatData::from_player(player);
+            let player = boat.player.clone();
+            *boat = BoatData::from_player(player);
         }
-        let pos_prev = data.position_previous;
-        let pos_current = data.position_current;
+        let pos_prev = boat.position_previous;
+        let pos_current = boat.position_current;
         let mut physics = BoatPhysics::from_dt(dt);
-        match data.player {
+        match boat.player {
             Player::One => {
                 if keyboard.pressed(KeyCode::ArrowLeft) {
-                    data.angle_current += physics.turning_speed * dt;
+                    boat.angle_current += physics.turning_speed * dt;
                 }
                 if keyboard.pressed(KeyCode::ArrowRight) {
-                    data.angle_current -= physics.turning_speed * dt;
+                    boat.angle_current -= physics.turning_speed * dt;
                 }
-                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - data.angle_current);
+                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
                 if keyboard.pressed(KeyCode::ArrowUp) {
                     physics.force += physics.thrust * dir_current
                 }
@@ -266,12 +268,12 @@ fn update_vehicule_physics(
             }
             Player::Two => {
                 if keyboard.pressed(KeyCode::KeyA) {
-                    data.angle_current += physics.turning_speed * dt;
+                    boat.angle_current += physics.turning_speed * dt;
                 }
                 if keyboard.pressed(KeyCode::KeyD) {
-                    data.angle_current -= physics.turning_speed * dt;
+                    boat.angle_current -= physics.turning_speed * dt;
                 }
-                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - data.angle_current);
+                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
                 if keyboard.pressed(KeyCode::KeyW) {
                     physics.force += physics.thrust * dir_current
                 }
@@ -280,10 +282,20 @@ fn update_vehicule_physics(
                 }
             }
         };
-        let pos_next = physics.compute_next_pos(pos_prev, pos_current, data.angle_current);
-        data.position_previous = data.position_current;
-        data.position_current = pos_next.into();
+        let pos_next = physics.compute_next_pos(pos_prev, pos_current, boat.angle_current);
+        boat.position_previous = boat.position_current;
+        boat.position_current = pos_next.into();
         transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
-        transform.rotation = Quat::from_axis_angle(Vec3::Y, data.angle_current);
+        transform.rotation = Quat::from_axis_angle(Vec3::Y, boat.angle_current);
+        match boat.player {
+            Player::One => {
+                for material_handle in material_handles.iter() {
+                    if let Some(material) = materials.get_mut(material_handle) {
+                        material.cursor_position = pos_next;
+                    }
+                }
+            }
+            _ => {}
+        };
     }
 }
