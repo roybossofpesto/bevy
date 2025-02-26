@@ -47,6 +47,7 @@ struct BoatData {
     position_current: Vec2,
     angle_current: f32,
     crossed_checkpoints: HashSet<u8>,
+    lap_count: u32,
 }
 
 #[derive(Component)]
@@ -63,6 +64,7 @@ impl BoatData {
                 position_current: POS_P1.xz().into(),
                 angle_current: PI,
                 crossed_checkpoints: HashSet::new(),
+                lap_count: 0,
             },
             Player::Two => BoatData {
                 player: Player::Two,
@@ -70,6 +72,7 @@ impl BoatData {
                 position_current: POS_P2.xz().into(),
                 angle_current: PI,
                 crossed_checkpoints: HashSet::new(),
+                lap_count: 0,
             },
         }
     }
@@ -120,7 +123,7 @@ fn setup_vehicules(
 }
 
 fn resolve_vehicule_collisions(
-    boats: Query<&mut BoatData>,
+    mut boats: Query<&mut BoatData>,
     mut labels: Query<&mut Text, With<StatusMarker>>,
     tracks: Res<Assets<track::Track>>,
 ) {
@@ -140,8 +143,8 @@ fn resolve_vehicule_collisions(
     let kdtree = &track.checkpoint_kdtree;
     assert!(!kdtree.is_empty());
 
-    let mut ss: Vec<String> = vec![];
-    for mut boat in boats {
+    // update crossed checkpoints & lap counts
+    for mut boat in &mut boats {
         let query_segment = track::CheckpointSegment::from_endpoints(
             &boat.position_current,
             &boat.position_previous,
@@ -150,9 +153,23 @@ fn resolve_vehicule_collisions(
         if track::CheckpointSegment::intersects(&query_segment, closest_segment.item) {
             assert!(query_segment.ii == 255);
             assert!(closest_segment.item.ii != 255);
+            if closest_segment.item.ii == 0 {
+                let mut crossed_all_checkpoints = true;
+                for kk in 0..track.checkpoint_count {
+                    crossed_all_checkpoints &= boat.crossed_checkpoints.contains(&kk);
+                }
+                if crossed_all_checkpoints {
+                    boat.lap_count += 1;
+                    boat.crossed_checkpoints.clear();
+                }
+            }
             boat.crossed_checkpoints.insert(closest_segment.item.ii);
         }
+    }
 
+    // prepare ui status label
+    let mut ss: Vec<String> = vec![];
+    for boat in &boats {
         let mut rr = String::new();
         for kk in 0..track.checkpoint_count {
             let foo = match boat.crossed_checkpoints.contains(&kk) {
@@ -161,12 +178,8 @@ fn resolve_vehicule_collisions(
             };
             rr = format!("{}{}", rr, foo)
         }
-        ss.push(format!(
-            "{} {} {}",
-            boat.player, closest_segment.item.ii, rr
-        ));
+        ss.push(format!("{} {} {}", boat.player, rr, boat.lap_count));
     }
-
     assert!(!label.is_empty());
     *label = ss.join("\n").into();
 }
