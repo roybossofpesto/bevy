@@ -6,11 +6,12 @@
 @group(2) @binding(1) var material_color_sampler: sampler;
 @group(2) @binding(2) var<uniform> material_color: vec4<f32>;
 @group(2) @binding(3) var<uniform> track_length: f32;
-@group(2) @binding(4) var<uniform> line_width: f32;
-@group(2) @binding(5) var<uniform> time: f32;
-@group(2) @binding(6) var<uniform> cursor_position: vec2<f32>;
-@group(2) @binding(7) var<uniform> cursor_radius: f32;
-@group(2) @binding(8) var<uniform> lateral_range: vec2<f32>;
+@group(2) @binding(4) var<uniform> middle_line_width: f32;
+@group(2) @binding(5) var<uniform> start_line_width: f32;
+@group(2) @binding(6) var<uniform> time: f32;
+@group(2) @binding(7) var<uniform> cursor_position: vec2<f32>;
+@group(2) @binding(8) var<uniform> cursor_radius: f32;
+@group(2) @binding(9) var<uniform> lateral_range: vec2<f32>;
 
 @fragment
 fn fragment(
@@ -21,12 +22,15 @@ fn fragment(
         let aa = textureSample(material_color_texture, material_color_sampler, mesh.uv_b);
         color = material_color * aa;
     }
-    if abs(mesh.uv.x) < line_width / 2.0 { 
+    if abs(mesh.uv.x) < middle_line_width / 2.0 { 
         color = vec4(1.0);
         if fract(mesh.uv.y / track_length * 10.0 - time * 3.0) < 0.5 { color = vec4(0.0, 1.0, 0.0, 1.0); }
     }
     if length(mesh.uv_b - cursor_position) < cursor_radius {
         color = vec4(1.0, 0.0, 0.0, 1.0);
+    }
+    if mesh.uv.y < start_line_width / 2.0 || mesh.uv.y > track_length - start_line_width / 2.0 {
+        color = vec4(1.0, 0.0, 1.0, 1.0);
     }
     return color;
 }

@@ -1,5 +1,7 @@
 use crate::track;
+
 use std::collections::HashSet;
+use std::fmt;
 
 use bevy::prelude::*;
 
@@ -19,22 +21,26 @@ impl Plugin for VehiculePlugin {
         app.add_systems(Update, update_vehicule_physics);
         app.add_systems(Update, resolve_vehicule_collisions);
     }
-    // fn finish(&self, app: &mut App) {
-    //     info!("** simu_finish **");
-    //     let render_app = app.sub_app_mut(RenderApp);
-    //     render_app.init_resource::<SimuPipeline>();
-    // }
 }
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum Player {
     One,
     Two,
 }
 
-#[derive(Component, Clone, Debug)]
+impl fmt::Display for Player {
+    fn fmt(&self, buffer: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Player::One => write!(buffer, "P1"),
+            Player::Two => write!(buffer, "P2"),
+        }
+    }
+}
+
+#[derive(Component, Clone)]
 struct BoatData {
     player: Player,
     position_prev: Vec2,
@@ -71,15 +77,11 @@ impl BoatData {
 
 fn setup_vehicules(
     mut commands: Commands,
-    // mut images: ResMut<Assets<Image>>,
-    // mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     server: Res<AssetServer>,
 ) {
     info!("** setup_vehicules **");
 
-    // let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.gltf#Mesh0/Primitive0");
-    // let my_mesh: Handle<Mesh> = server.load("models/animated/Fox.glb");
     let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
 
     commands.spawn((
@@ -142,10 +144,7 @@ fn resolve_vehicule_collisions(
     for boat in boats {
         let bar = track::CheckpointSegment::from_single_position(&boat.position_current);
         let foo = kdtree.nearest(&bar).unwrap();
-        ss.push(format!(
-            "{:?} [{:.2e}, {:0.2e}] {}",
-            boat.player, boat.position_current.x, boat.position_current.y, foo.item.ii
-        ));
+        ss.push(format!("{} {}", boat.player, foo.item.ii));
     }
 
     assert!(!label.is_empty());

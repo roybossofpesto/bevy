@@ -172,7 +172,7 @@ fn populate_racing_lines(
 
     // track 5 showcases racing lines on track 1 data
     let mut track5_material = make_racing_line_material(&asset_server, track1.total_length);
-    track5_material.line_width = 0.5;
+    track5_material.middle_line_width = 0.5;
     track5_material.lateral_range = Vec2::new(-1.8, 0.8);
     commands.spawn((
         Mesh3d(meshes.add(track1.track.clone())),
@@ -200,14 +200,16 @@ struct RacingLineMaterial {
     #[uniform(3)]
     track_length: f32,
     #[uniform(4)]
-    line_width: f32,
+    middle_line_width: f32,
     #[uniform(5)]
-    time: f32,
+    start_line_width: f32,
     #[uniform(6)]
-    cursor_position: Vec2,
+    time: f32,
     #[uniform(7)]
-    cursor_radius: f32,
+    cursor_position: Vec2,
     #[uniform(8)]
+    cursor_radius: f32,
+    #[uniform(9)]
     lateral_range: Vec2,
     alpha_mode: AlphaMode,
 }
@@ -234,7 +236,8 @@ fn make_racing_line_material(
     use bevy::image::ImageSamplerDescriptor;
     RacingLineMaterial {
         track_length,
-        line_width: 0.2,
+        middle_line_width: 0.2,
+        start_line_width: 0.2,
         lateral_range: Vec2::new(-0.8, 0.8),
         time: 0.0,
         cursor_position: Vec2::ZERO,
@@ -617,6 +620,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     current_length,
                 );
                 assert!(foo == 0);
+                push_checkpoint_segment(
+                    &current_position,
+                    &current_forward,
+                    current_left,
+                    current_right,
+                    0,
+                );
             }
             TrackPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
@@ -757,22 +767,22 @@ static TRACK0_PIECES: [TrackPiece; 22] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
-    TrackPiece::Checkpoint(0),
-    TrackPiece::Straight(StraightData::from_length(8.0)),
     TrackPiece::Checkpoint(1),
-    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::from_length(8.0)),
     TrackPiece::Checkpoint(2),
-    TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Checkpoint(3),
-    TrackPiece::Straight(StraightData::from_length(14.0)),
-    TrackPiece::Checkpoint(4),
+    TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(11.0)),
+    TrackPiece::Checkpoint(4),
+    TrackPiece::Straight(StraightData::from_length(14.0)),
     TrackPiece::Checkpoint(5),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Straight(StraightData::from_length(11.0)),
     TrackPiece::Checkpoint(6),
+    TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Checkpoint(7),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(3.0)),
     TrackPiece::Finish,
@@ -788,9 +798,9 @@ static TRACK0_DATA: TrackData = TrackData {
     num_segments: 4,
 };
 
-static TRACK1_PIECES: [TrackPiece; 13] = [
+static TRACK1_PIECES: [TrackPiece; 14] = [
     TrackPiece::Start,
-    TrackPiece::Straight(StraightData::from_length(6.0)),
+    TrackPiece::Straight(StraightData::from_length(5.0)),
     TrackPiece::Straight(StraightData::from_left_right(-1.0, 0.5)),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
@@ -801,6 +811,7 @@ static TRACK1_PIECES: [TrackPiece; 13] = [
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_left_right(-2.0, 1.0)),
     TrackPiece::Corner(CornerData::right_turn()),
+    TrackPiece::Straight(StraightData::from_left_right_length(-2.0, 1.0, 1.0)),
     TrackPiece::Finish,
 ];
 
