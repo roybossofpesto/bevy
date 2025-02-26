@@ -455,13 +455,44 @@ pub struct CheckpointSegment {
     pub ii: u8,
 }
 
+#[derive(PartialEq)]
+enum Align {
+    Left,
+    Colinear,
+    Right,
+}
+
+impl Align {
+    fn from_triplet(xx: &Vec2, yy: &Vec2, zz: &Vec2) -> Self {
+        let xy = yy - xx;
+        let xz = zz - xx;
+        let cross = xy.x * xz.y - xy.y * xz.x;
+        if f32::abs(cross) < 1e-7 {
+            return Align::Colinear;
+        };
+        if cross > 0.0 {
+            Align::Left
+        } else {
+            Align::Right
+        }
+    }
+}
+
 impl CheckpointSegment {
-    pub fn from_single_position(xx: &Vec2) -> Self {
+    pub fn from_endpoints(aa: &Vec2, bb: &Vec2) -> Self {
         Self {
-            aa: xx.clone().into(),
-            bb: xx.clone().into(),
+            aa: aa.clone().into(),
+            bb: bb.clone().into(),
             ii: 255,
         }
+    }
+
+    pub fn intersects(pp: &Self, qq: &Self) -> bool {
+        let qa = Align::from_triplet(&pp.aa, &pp.bb, &qq.aa);
+        let qb = Align::from_triplet(&pp.aa, &pp.bb, &qq.bb);
+        let pa = Align::from_triplet(&qq.aa, &qq.bb, &pp.aa);
+        let pb = Align::from_triplet(&qq.aa, &qq.bb, &pp.bb);
+        qa != qb && pa != pb
     }
 }
 

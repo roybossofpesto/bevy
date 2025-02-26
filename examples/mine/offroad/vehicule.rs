@@ -43,7 +43,7 @@ impl fmt::Display for Player {
 #[derive(Component, Clone)]
 struct BoatData {
     player: Player,
-    position_prev: Vec2,
+    position_previous: Vec2,
     position_current: Vec2,
     angle_current: f32,
     crossed_checkpoints: HashSet<u8>,
@@ -59,14 +59,14 @@ impl BoatData {
         match player {
             Player::One => BoatData {
                 player: Player::One,
-                position_prev: POS_P1.xz().into(),
+                position_previous: POS_P1.xz().into(),
                 position_current: POS_P1.xz().into(),
                 angle_current: PI,
                 crossed_checkpoints: HashSet::new(),
             },
             Player::Two => BoatData {
                 player: Player::Two,
-                position_prev: POS_P2.xz().into(),
+                position_previous: POS_P2.xz().into(),
                 position_current: POS_P2.xz().into(),
                 angle_current: PI,
                 crossed_checkpoints: HashSet::new(),
@@ -120,7 +120,7 @@ fn setup_vehicules(
 }
 
 fn resolve_vehicule_collisions(
-    boats: Query<&BoatData>,
+    boats: Query<&mut BoatData>,
     mut labels: Query<&mut Text, With<StatusMarker>>,
     tracks: Res<Assets<track::Track>>,
 ) {
@@ -141,10 +141,30 @@ fn resolve_vehicule_collisions(
     assert!(!kdtree.is_empty());
 
     let mut ss: Vec<String> = vec![];
-    for boat in boats {
-        let bar = track::CheckpointSegment::from_single_position(&boat.position_current);
-        let foo = kdtree.nearest(&bar).unwrap();
-        ss.push(format!("{} {}", boat.player, foo.item.ii));
+    for mut boat in boats {
+        let query_segment = track::CheckpointSegment::from_endpoints(
+            &boat.position_current,
+            &boat.position_previous,
+        );
+        let closest_segment = kdtree.nearest(&query_segment).unwrap();
+        if track::CheckpointSegment::intersects(&query_segment, closest_segment.item) {
+            assert!(query_segment.ii == 255);
+            assert!(closest_segment.item.ii != 255);
+            boat.crossed_checkpoints.insert(closest_segment.item.ii);
+        }
+
+        let mut rr = String::new();
+        for kk in 0..track.checkpoint_count {
+            let foo = match boat.crossed_checkpoints.contains(&kk) {
+                true => "X",
+                false => "_",
+            };
+            rr = format!("{}{}", rr, foo)
+        }
+        ss.push(format!(
+            "{} {} {}",
+            boat.player, closest_segment.item.ii, rr
+        ));
     }
 
     assert!(!label.is_empty());
@@ -195,7 +215,7 @@ fn update_vehicule_physics(
             let player = data.player.clone();
             *data = BoatData::from_player(player);
         }
-        let pos_prev = data.position_prev;
+        let pos_prev = data.position_previous;
         let pos_current = data.position_current;
         let mut physics = BoatPhysics::from_dt(dt);
         match data.player {
@@ -231,7 +251,7 @@ fn update_vehicule_physics(
             }
         };
         let pos_next = physics.compute_next_pos(pos_prev, pos_current, data.angle_current);
-        data.position_prev = data.position_current;
+        data.position_previous = data.position_current;
         data.position_current = pos_next.into();
         transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
         transform.rotation = Quat::from_axis_angle(Vec3::Y, data.angle_current);
