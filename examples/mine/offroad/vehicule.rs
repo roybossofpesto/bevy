@@ -1,3 +1,4 @@
+use kd_tree::{KdPoint, KdTree};
 use std::collections::HashSet;
 
 use bevy::prelude::*;
@@ -17,6 +18,7 @@ impl Plugin for VehiculePlugin {
         app.add_systems(Startup, setup_vehicule);
         app.add_systems(Update, update_vehicule_physics);
         app.add_systems(Update, update_checkpoints);
+        app.add_systems(Update, bump_vehicules);
     }
     // fn finish(&self, app: &mut App) {
     //     info!("** simu_finish **");
@@ -27,13 +29,13 @@ impl Plugin for VehiculePlugin {
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Player {
     One,
     Two,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Debug)]
 struct BoatData {
     player: Player,
     position_prev: [f32; 2],
@@ -44,6 +46,9 @@ struct BoatData {
 
 #[derive(Component)]
 struct StatusMarker;
+
+#[derive(Component)]
+struct LabelMarker;
 
 impl BoatData {
     fn from_player(player: Player) -> Self {
@@ -103,12 +108,34 @@ fn setup_vehicule(
     ));
 
     commands.spawn((
+        Text::new("coucou"),
+        TextFont {
+            font_size: 22.0,
+            ..default()
+        },
+        LabelMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            left: Val::Px(5.0),
+            ..default()
+        },
+    ));
+
+    commands.spawn((
         StatusMarker,
         Text::new("status"),
         TextFont {
-            font_size: 24.0,
+            font_size: 22.0,
             ..default()
         },
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(5.0),
+            left: Val::Px(5.0),
+            ..default()
+        },
+
     ));
 }
 
@@ -120,16 +147,45 @@ fn update_checkpoints(
     let track = tracks.get(&crate::track::TRACK0_HANDLE).unwrap();
     assert!(track.is_looping);
 
-    for mut boat_data in &mut boat_query {
-        info!("dksjf {:?}", boat_data.position_current);
-        for (index, (aa, bb)) in track.checkpoint_to_segments.iter() {}
-    }
+    // for mut boat_data in &mut boat_query {
+    //     info!("dksjf {:?}", boat_data.position_current);
+    //     for (index, (aa, bb)) in track.checkpoint_to_segments.iter() {}
+    // }
 
     let Ok(mut status) = status_query.get_single_mut() else {
         return;
     };
 
     *status = format!("p1 {} p2 {}", 12, 456).into();
+}
+
+impl KdPoint for BoatData {
+    type Scalar = f32;
+    type Dim = typenum::U2; // 2 dimensional tree.
+    fn at(&self, k: usize) -> f32 {
+        self.position_current[k]
+    }
+}
+
+fn bump_vehicules(boats: Query<&BoatData>, mut labels: Query<&mut Text, With<LabelMarker>>) {
+    if boats.is_empty() {
+        return;
+    }
+
+    let mut items: Vec<BoatData> = vec![];
+    for boat in boats {
+        items.push(boat.clone());
+    }
+
+    let kdtree: KdTree<BoatData> = KdTree::build_by_ordered_float(items);
+
+    let foo = kdtree.nearest(&[0.0, 2.0]).unwrap();
+
+    let Ok(mut label) = labels.get_single_mut() else {
+        return;
+    };
+
+    *label = format!("kdtree {:?} {:.02e}", foo.item.player, foo.squared_distance).into();
 }
 
 fn update_vehicule_physics(
