@@ -1,7 +1,9 @@
 use crate::track;
 
-use std::collections::HashSet;
+use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt;
+use std::time::Duration;
 
 use bevy::prelude::*;
 
@@ -19,7 +21,7 @@ impl Plugin for VehiculePlugin {
 
         app.add_systems(Startup, setup_vehicules);
         app.add_systems(Update, update_vehicule_physics);
-        app.add_systems(Update, resolve_vehicule_collisions);
+        app.add_systems(Update, resolve_checkpoints);
     }
 }
 
@@ -46,7 +48,7 @@ struct BoatData {
     position_previous: Vec2,
     position_current: Vec2,
     angle_current: f32,
-    crossed_checkpoints: HashSet<u8>,
+    crossed_checkpoints: HashMap<u8, Duration>,
     lap_count: u32,
 }
 
@@ -63,7 +65,7 @@ impl BoatData {
                 position_previous: POS_P1.xz().into(),
                 position_current: POS_P1.xz().into(),
                 angle_current: PI,
-                crossed_checkpoints: HashSet::new(),
+                crossed_checkpoints: HashMap::new(),
                 lap_count: 0,
             },
             Player::Two => BoatData {
@@ -71,7 +73,7 @@ impl BoatData {
                 position_previous: POS_P2.xz().into(),
                 position_current: POS_P2.xz().into(),
                 angle_current: PI,
-                crossed_checkpoints: HashSet::new(),
+                crossed_checkpoints: HashMap::new(),
                 lap_count: 0,
             },
         }
@@ -122,10 +124,11 @@ fn setup_vehicules(
     ));
 }
 
-fn resolve_vehicule_collisions(
+fn resolve_checkpoints(
     mut boats: Query<&mut BoatData>,
     mut labels: Query<&mut Text, With<StatusMarker>>,
     tracks: Res<Assets<track::Track>>,
+    time: Res<Time>,
 ) {
     let Some(track) = tracks.get(&track::TRACK0_HANDLE) else {
         return;
@@ -143,6 +146,8 @@ fn resolve_vehicule_collisions(
     let kdtree = &track.checkpoint_kdtree;
     assert!(!kdtree.is_empty());
 
+    let top_now = time.elapsed();
+
     // update crossed checkpoints & lap counts
     for mut boat in &mut boats {
         let query_segment = track::CheckpointSegment::from_endpoints(
@@ -156,29 +161,41 @@ fn resolve_vehicule_collisions(
             if closest_segment.item.ii == 0 {
                 let mut crossed_all_checkpoints = true;
                 for kk in 0..track.checkpoint_count {
-                    crossed_all_checkpoints &= boat.crossed_checkpoints.contains(&kk);
+                    crossed_all_checkpoints &= boat.crossed_checkpoints.contains_key(&kk);
                 }
                 if crossed_all_checkpoints {
                     boat.lap_count += 1;
                     boat.crossed_checkpoints.clear();
                 }
             }
-            boat.crossed_checkpoints.insert(closest_segment.item.ii);
+            boat.crossed_checkpoints
+                .insert(closest_segment.item.ii, top_now);
         }
     }
 
     // prepare ui status label
     let mut ss: Vec<String> = vec![];
     for boat in &boats {
+        let mut lap_duration = top_now;
         let mut rr = String::new();
         for kk in 0..track.checkpoint_count {
-            let foo = match boat.crossed_checkpoints.contains(&kk) {
-                true => "X",
-                false => "_",
+            let foo = match boat.crossed_checkpoints.get(&kk) {
+                Some(duration) => {
+                    lap_duration = min(lap_duration, *duration);
+                    "X"
+                }
+                None => "_",
             };
             rr = format!("{}{}", rr, foo)
         }
-        ss.push(format!("{} {} {}", boat.player, rr, boat.lap_count));
+        lap_duration = top_now - lap_duration;
+        ss.push(format!(
+            "{} {:>6.3} {} {}",
+            boat.player,
+            lap_duration.as_secs_f32(),
+            rr,
+            boat.lap_count,
+        ));
     }
     assert!(!label.is_empty());
     *label = ss.join("\n").into();
