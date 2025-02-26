@@ -15,10 +15,9 @@ impl Plugin for VehiculePlugin {
     fn build(&self, app: &mut App) {
         info!("** build_vehicule **");
 
-        app.add_systems(Startup, setup_vehicule);
+        app.add_systems(Startup, setup_vehicules);
         app.add_systems(Update, update_vehicule_physics);
-        app.add_systems(Update, update_checkpoints);
-        app.add_systems(Update, bump_vehicules);
+        app.add_systems(Update, resolve_vehicule_collisions);
     }
     // fn finish(&self, app: &mut App) {
     //     info!("** simu_finish **");
@@ -47,9 +46,6 @@ struct BoatData {
 #[derive(Component)]
 struct StatusMarker;
 
-#[derive(Component)]
-struct LabelMarker;
-
 impl BoatData {
     fn from_player(player: Player) -> Self {
         const POS_P1: Vec3 = Vec3::new(-11.5, 0.0, 0.0);
@@ -73,14 +69,14 @@ impl BoatData {
     }
 }
 
-fn setup_vehicule(
+fn setup_vehicules(
     mut commands: Commands,
     // mut images: ResMut<Assets<Image>>,
     // mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     server: Res<AssetServer>,
 ) {
-    info!("** setup_vehicule **");
+    info!("** setup_vehicules **");
 
     // let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.gltf#Mesh0/Primitive0");
     // let my_mesh: Handle<Mesh> = server.load("models/animated/Fox.glb");
@@ -108,22 +104,6 @@ fn setup_vehicule(
     ));
 
     commands.spawn((
-        Text::new("coucou"),
-        TextFont {
-            font_size: 22.0,
-            ..default()
-        },
-        LabelMarker,
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(5.0),
-            left: Val::Px(5.0),
-            ..default()
-        },
-    ));
-
-    commands.spawn((
-        StatusMarker,
         Text::new("status"),
         TextFont {
             font_size: 22.0,
@@ -131,32 +111,12 @@ fn setup_vehicule(
         },
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(5.0),
+            top: Val::Px(5.0),
             left: Val::Px(5.0),
             ..default()
         },
-
+        StatusMarker,
     ));
-}
-
-fn update_checkpoints(
-    mut boat_query: Query<&mut BoatData>,
-    mut status_query: Query<&mut Text, With<StatusMarker>>,
-    tracks: Res<Assets<crate::track::Track>>,
-) {
-    let track = tracks.get(&crate::track::TRACK0_HANDLE).unwrap();
-    assert!(track.is_looping);
-
-    // for mut boat_data in &mut boat_query {
-    //     info!("dksjf {:?}", boat_data.position_current);
-    //     for (index, (aa, bb)) in track.checkpoint_to_segments.iter() {}
-    // }
-
-    let Ok(mut status) = status_query.get_single_mut() else {
-        return;
-    };
-
-    *status = format!("p1 {} p2 {}", 12, 456).into();
 }
 
 impl KdPoint for BoatData {
@@ -167,10 +127,24 @@ impl KdPoint for BoatData {
     }
 }
 
-fn bump_vehicules(boats: Query<&BoatData>, mut labels: Query<&mut Text, With<LabelMarker>>) {
+fn resolve_vehicule_collisions(
+    boats: Query<&BoatData>,
+    mut labels: Query<&mut Text, With<StatusMarker>>,
+    tracks: Res<Assets<crate::track::Track>>,
+) {
+    let Some(track) = tracks.get(&crate::track::TRACK0_HANDLE) else {
+        return;
+    };
+
     if boats.is_empty() {
         return;
     }
+
+    let Ok(mut label) = labels.get_single_mut() else {
+        return;
+    };
+
+    assert!(track.is_looping);
 
     let mut items: Vec<BoatData> = vec![];
     for boat in boats {
@@ -179,12 +153,10 @@ fn bump_vehicules(boats: Query<&BoatData>, mut labels: Query<&mut Text, With<Lab
 
     let kdtree: KdTree<BoatData> = KdTree::build_by_ordered_float(items);
 
+    assert!(!kdtree.is_empty());
     let foo = kdtree.nearest(&[0.0, 2.0]).unwrap();
 
-    let Ok(mut label) = labels.get_single_mut() else {
-        return;
-    };
-
+    assert!(!label.is_empty());
     *label = format!("kdtree {:?} {:.02e}", foo.item.player, foo.squared_distance).into();
 }
 
