@@ -117,7 +117,7 @@ fn setup_vehicules(
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(5.0),
-            left: Val::Px(5.0),
+            right: Val::Px(5.0),
             ..default()
         },
         StatusMarker,

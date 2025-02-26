@@ -1,8 +1,5 @@
 //! offroad ftw
 
-// use bevy::color::palettes::basic::RED;
-// use bevy::color::palettes::basic::BLUE;
-
 mod scene;
 mod simu;
 mod track;
@@ -19,13 +16,18 @@ fn main() {
     #[cfg(feature = "bevy_dev_tools")]
     {
         // fps overlay
+        use bevy::color::palettes::basic::YELLOW;
         use bevy::dev_tools::fps_overlay::FpsOverlayConfig;
         use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
         app.add_plugins(FpsOverlayPlugin {
-            config: FpsOverlayConfig::default(),
+            config: FpsOverlayConfig {
+                text_color: Color::from(YELLOW),
+                ..default()
+            },
         });
     }
 
+    /*
     #[cfg(feature = "bevy_dev_tools")]
     {
         // wireframe toggle
@@ -48,6 +50,7 @@ fn main() {
             },
         );
     }
+    */
 
     app.add_plugins(scene::ScenePlugin);
     app.add_plugins(simu::SimuPlugin);
