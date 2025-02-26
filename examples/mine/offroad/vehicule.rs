@@ -1,4 +1,5 @@
-use kd_tree::{KdPoint, KdTree};
+use crate::track;
+use std::collections::HashSet;
 
 use bevy::prelude::*;
 
@@ -14,9 +15,9 @@ impl Plugin for VehiculePlugin {
     fn build(&self, app: &mut App) {
         info!("** build_vehicule **");
 
-        app.add_systems(Startup, setup_vehicule);
+        app.add_systems(Startup, setup_vehicules);
         app.add_systems(Update, update_vehicule_physics);
-        app.add_systems(Update, bump_vehicules);
+        app.add_systems(Update, resolve_vehicule_collisions);
     }
     // fn finish(&self, app: &mut App) {
     //     info!("** simu_finish **");
@@ -36,10 +37,14 @@ enum Player {
 #[derive(Component, Clone, Debug)]
 struct BoatData {
     player: Player,
-    position_prev: [f32; 2],
-    position_current: [f32; 2],
+    position_prev: Vec2,
+    position_current: Vec2,
     angle_current: f32,
+    crossed_checkpoints: HashSet<u8>,
 }
+
+#[derive(Component)]
+struct StatusMarker;
 
 impl BoatData {
     fn from_player(player: Player) -> Self {
@@ -51,84 +56,100 @@ impl BoatData {
                 position_prev: POS_P1.xz().into(),
                 position_current: POS_P1.xz().into(),
                 angle_current: PI,
+                crossed_checkpoints: HashSet::new(),
             },
             Player::Two => BoatData {
                 player: Player::Two,
                 position_prev: POS_P2.xz().into(),
                 position_current: POS_P2.xz().into(),
                 angle_current: PI,
+                crossed_checkpoints: HashSet::new(),
             },
         }
     }
 }
 
-#[derive(Component)]
-struct LabelMarker;
-
-fn setup_vehicule(
+fn setup_vehicules(
     mut commands: Commands,
     // mut images: ResMut<Assets<Image>>,
     // mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     server: Res<AssetServer>,
 ) {
-    info!("** setup_vehicule **");
+    info!("** setup_vehicules **");
 
-    // get a specific mesh
     // let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.gltf#Mesh0/Primitive0");
-    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
     // let my_mesh: Handle<Mesh> = server.load("models/animated/Fox.glb");
+    let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
 
     commands.spawn((
         Mesh3d(my_mesh.clone()),
-        MeshMaterial3d(materials.add(Color::from(YELLOW))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::from(YELLOW),
+            ..StandardMaterial::default()
+        })),
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::One),
     ));
     commands.spawn((
         Mesh3d(my_mesh),
-        MeshMaterial3d(materials.add(Color::from(PURPLE))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::from(PURPLE),
+            ..StandardMaterial::default()
+        })),
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::Two),
     ));
 
     commands.spawn((
-        Text("coucou".into()),
+        Text::new("status"),
         TextFont {
             font_size: 22.0,
             ..default()
         },
-        LabelMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            left: Val::Px(5.0),
+            ..default()
+        },
+        StatusMarker,
     ));
 }
 
-impl KdPoint for BoatData {
-    type Scalar = f32;
-    type Dim = typenum::U2; // 2 dimensional tree.
-    fn at(&self, k: usize) -> f32 {
-        self.position_current[k]
-    }
-}
+fn resolve_vehicule_collisions(
+    boats: Query<&BoatData>,
+    mut labels: Query<&mut Text, With<StatusMarker>>,
+    tracks: Res<Assets<track::Track>>,
+) {
+    let Some(track) = tracks.get(&track::TRACK0_HANDLE) else {
+        return;
+    };
 
-fn bump_vehicules(boats: Query<&BoatData>, mut labels: Query<&mut Text, With<LabelMarker>>) {
     if boats.is_empty() {
         return;
     }
-
-    let mut items: Vec<BoatData> = vec![];
-    for boat in boats {
-        items.push(boat.clone());
-    }
-
-    let kdtree: KdTree<BoatData> = KdTree::build_by_ordered_float(items);
-
-    let foo = kdtree.nearest(&[0.0, 2.0]).unwrap();
 
     let Ok(mut label) = labels.get_single_mut() else {
         return;
     };
 
-    **label = format!("kdtree {:?} {:.02e}", foo.item.player, foo.squared_distance).into();
+    assert!(track.is_looping);
+    let kdtree = &track.checkpoint_kdtree;
+    assert!(!kdtree.is_empty());
+
+    let mut ss: Vec<String> = vec![];
+    for boat in boats {
+        let bar = track::CheckpointSegment::from_single_position(&boat.position_current);
+        let foo = kdtree.nearest(&bar).unwrap();
+        ss.push(format!(
+            "{:?} [{:.2e}, {:0.2e}] {}",
+            boat.player, boat.position_current.x, boat.position_current.y, foo.item.ii
+        ));
+    }
+
+    assert!(!label.is_empty());
+    *label = ss.join("\n").into();
 }
 
 fn update_vehicule_physics(
@@ -175,8 +196,8 @@ fn update_vehicule_physics(
             let player = data.player.clone();
             *data = BoatData::from_player(player);
         }
-        let pos_prev = Vec2::from_array(data.position_prev);
-        let pos_current = Vec2::from_array(data.position_current);
+        let pos_prev = data.position_prev;
+        let pos_current = data.position_current;
         let mut physics = BoatPhysics::from_dt(dt);
         match data.player {
             Player::One => {

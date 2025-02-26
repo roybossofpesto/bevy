@@ -1,4 +1,6 @@
-use bevy::asset::{Asset, AssetServer, Assets};
+use kd_tree::{KdPoint, KdTree};
+
+use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
 use bevy::math::NormedVectorSpace;
 use bevy::math::{Mat3, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
@@ -23,8 +25,10 @@ pub struct TrackPlugin;
 
 impl bevy::prelude::Plugin for TrackPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        use bevy::prelude::{MaterialPlugin, Startup, Update};
+        use bevy::prelude::{MaterialPlugin, PreStartup, Startup, Update};
+        app.init_asset::<Track>();
         app.add_plugins(MaterialPlugin::<RacingLineMaterial>::default());
+        app.add_systems(PreStartup, prepare_tracks);
         app.add_systems(Startup, populate_tracks);
         app.add_systems(Startup, populate_racing_lines);
         app.add_systems(Update, animate_wavy_materials);
@@ -34,10 +38,20 @@ impl bevy::prelude::Plugin for TrackPlugin {
 
 //////////////////////////////////////////////////////////////////////
 
+pub const TRACK0_HANDLE: Handle<Track> = weak_handle!("1347c9b7-c46a-48e7-0000-023a354b7cac");
+pub const TRACK1_HANDLE: Handle<Track> = weak_handle!("1347c9b7-c46a-48e7-1111-023a354b7cac");
+
+fn prepare_tracks(mut tracks: ResMut<Assets<Track>>) {
+    info!("** prepare_tracks **");
+    tracks.insert(&TRACK0_HANDLE, prepare_track(&TRACK0_DATA));
+    tracks.insert(&TRACK1_HANDLE, prepare_track(&TRACK1_DATA));
+}
+
 fn populate_tracks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    tracks: Res<Assets<Track>>,
     asset_server: Res<AssetServer>,
 ) {
     use bevy::color::Color;
@@ -51,15 +65,19 @@ fn populate_tracks(
 
     info!("** populate_tracks **");
 
-    let track0_ret = make_track_mesh(&TRACK0_DATA);
-    let track1_ret = make_track_mesh(&TRACK1_DATA);
+    let track0 = tracks.get(&TRACK0_HANDLE).unwrap();
+    let track1 = tracks.get(&TRACK1_HANDLE).unwrap();
 
     // track 0 showcases flow parametrization
     let checkpoint0_material = materials.add(StandardMaterial {
         base_color: Color::hsva(0.0, 0.8, 1.0, 0.8),
-        alpha_mode: AlphaMode::Blend,
+        // alpha_mode: AlphaMode::Blend, FIXME buggy
         ..StandardMaterial::default()
     });
+    commands.spawn((
+        Mesh3d(meshes.add(track0.checkpoint.clone())),
+        MeshMaterial3d(checkpoint0_material),
+    ));
     let track0_material = materials.add(StandardMaterial {
         base_color_channel: UvChannel::Uv0,
         base_color_texture: Some(asset_server.load_with_settings(
@@ -79,12 +97,8 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(track0_ret.0)),
+        Mesh3d(meshes.add(track0.track.clone())),
         MeshMaterial3d(track0_material.clone()),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(track0_ret.1)),
-        MeshMaterial3d(checkpoint0_material),
     ));
 
     // track 1 showcases projected parametrization
@@ -110,7 +124,7 @@ fn populate_tracks(
         ..StandardMaterial::default()
     });
     commands.spawn((
-        Mesh3d(meshes.add(track1_ret.0.clone())),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(track1_material),
         Transform::from_xyz(-1.0, 0.0, -2.0),
     ));
@@ -119,7 +133,7 @@ fn populate_tracks(
     let track2_material = materials.add(make_wavy_material(&asset_server, 0.5));
     commands.spawn((
         WavyMarker,
-        Mesh3d(meshes.add(track1_ret.0)),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
@@ -130,43 +144,42 @@ fn populate_racing_lines(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<RacingLineMaterial>>,
+    tracks: Res<Assets<Track>>,
     asset_server: Res<AssetServer>,
 ) {
     use bevy::prelude::Transform;
 
     info!("** populate_track_dots **");
 
-    let track0_ret = make_track_mesh(&TRACK0_DATA);
-    let track1_ret = make_track_mesh(&TRACK1_DATA);
+    let track0 = tracks.get(&TRACK0_HANDLE).unwrap();
+    let track1 = tracks.get(&TRACK1_HANDLE).unwrap();
 
     // track 3 showcases racing lines on track 0 data
-    let track3_material = make_racing_line_material(&asset_server, track0_ret.2);
+    let track3_material = make_racing_line_material(&asset_server, track0.total_length);
     commands.spawn((
-        Mesh3d(meshes.add(track0_ret.0)),
+        Mesh3d(meshes.add(track0.track.clone())),
         MeshMaterial3d(materials.add(track3_material)),
         Transform::from_xyz(0.0, 1e-3, 0.0),
     ));
 
     // track 4 showcases racing lines on track 1 data
-    let track4_material = make_racing_line_material(&asset_server, track1_ret.2);
+    let track4_material = make_racing_line_material(&asset_server, track1.total_length);
     commands.spawn((
-        Mesh3d(meshes.add(track1_ret.0.clone())),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(materials.add(track4_material)),
         Transform::from_xyz(-1.0, 0.0, -2.0 + 1e-3),
     ));
 
     // track 5 showcases racing lines on track 1 data
-    let mut track5_material = make_racing_line_material(&asset_server, track1_ret.2);
+    let mut track5_material = make_racing_line_material(&asset_server, track1.total_length);
     track5_material.line_width = 0.5;
     track5_material.lateral_range = Vec2::new(-1.8, 0.8);
     commands.spawn((
-        Mesh3d(meshes.add(track1_ret.0)),
+        Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(materials.add(track5_material)),
         Transform::from_xyz(12.0, 1e-3, 9.0)
             .with_rotation(Quat::from_axis_angle(Vec3::X, -PI / 2.0)),
     ));
-
-    // "textures/BlueNoise-Normal.png",
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -433,7 +446,46 @@ struct TrackData {
     num_segments: u32,
 }
 
-fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
+pub struct CheckpointSegment {
+    aa: Vec2,
+    bb: Vec2,
+    pub ii: u8,
+}
+
+impl CheckpointSegment {
+    pub fn from_single_position(xx: &Vec2) -> Self {
+        Self {
+            aa: xx.clone().into(),
+            bb: xx.clone().into(),
+            ii: 255,
+        }
+    }
+}
+
+impl KdPoint for CheckpointSegment {
+    type Scalar = f32;
+    type Dim = typenum::U4; // 4 dimensional tree.
+    fn at(&self, kk: usize) -> f32 {
+        match kk {
+            0 => self.aa.x,
+            1 => self.bb.x,
+            2 => self.aa.y,
+            3 => self.bb.y,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Asset, TypePath)]
+pub struct Track {
+    pub track: Mesh,
+    pub checkpoint: Mesh,
+    pub total_length: f32,
+    pub is_looping: bool,
+    pub checkpoint_kdtree: KdTree<CheckpointSegment>,
+}
+
+fn prepare_track(track_data: &TrackData) -> Track {
     assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
     assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
@@ -475,16 +527,35 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
         next_vertex
     };
 
-    let mut mesh_positions: Vec<Vec3> = vec![];
-    let mut mesh_normals: Vec<Vec3> = vec![];
-    let mut mesh_triangles: Vec<u32> = vec![];
-    let mut mesh_uvs: Vec<Vec2> = vec![];
-    let mut mesh_pqs: Vec<Vec2> = vec![];
+    let mut checkpoint_segments: Vec<CheckpointSegment> = vec![];
+    let mut push_checkpoint_segment =
+        |position: &Vec3, forward: &Vec3, left: f32, right: f32, index: u8| -> () {
+            let righthand = forward.cross(track_data.initial_up);
+            let aa = position + righthand * left;
+            let bb = position + righthand * right;
+            // let proj = Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
+            //     .transpose();
+            // let aa_ = proj * (aa - track_data.initial_position);
+            // let bb_ = proj * (bb - track_data.initial_position);
+            // assert!(f32::abs(aa_.z) < 1e-5);
+            // assert!(f32::abs(bb_.z) < 1e-5);
+            checkpoint_segments.push(CheckpointSegment {
+                aa: aa.xz(),
+                bb: bb.xz(),
+                ii: index,
+            })
+        };
+
+    let mut track_positions: Vec<Vec3> = vec![];
+    let mut track_normals: Vec<Vec3> = vec![];
+    let mut track_triangles: Vec<u32> = vec![];
+    let mut track_uvs: Vec<Vec2> = vec![];
+    let mut track_pqs: Vec<Vec2> = vec![];
     let mut push_section =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
             let left_pos = position + forward.cross(track_data.initial_up) * left;
             let right_pos = position + forward.cross(track_data.initial_up) * right;
-            let next_vertex = mesh_positions.len() as u32;
+            let next_vertex = track_positions.len() as u32;
             let num_segments = track_data.num_segments;
             assert!(next_vertex % (num_segments + 1) == 0);
             for kk in 0..=num_segments {
@@ -498,10 +569,10 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
                         .transpose();
                 let pq = proj * (pos - track_data.initial_position);
                 assert!(f32::abs(pq.z) < 1e-5);
-                mesh_positions.push(pos);
-                mesh_normals.push(track_data.initial_up);
-                mesh_uvs.push(uv);
-                mesh_pqs.push(pq.xy());
+                track_positions.push(pos);
+                track_normals.push(track_data.initial_up);
+                track_uvs.push(uv);
+                track_pqs.push(pq.xy());
             }
             if next_vertex != 0 {
                 assert!(next_vertex >= (num_segments + 1));
@@ -517,8 +588,8 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
                         next_vertex + kk + 1,
                         next_vertex + kk,
                     ];
-                    mesh_triangles.append(&mut tri_aa);
-                    mesh_triangles.append(&mut tri_bb);
+                    track_triangles.append(&mut tri_aa);
+                    track_triangles.append(&mut tri_bb);
                 }
             }
             next_vertex
@@ -624,14 +695,21 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
                     -current_right,
                     -current_left,
                 );
+                push_checkpoint_segment(
+                    &current_position,
+                    &current_forward,
+                    current_left,
+                    current_right,
+                    index.clone(),
+                );
             }
         }
     }
 
     assert!(checkpoint_triangles.len() % 3 == 0);
-    assert!(mesh_triangles.len() % 3 == 0);
-    debug!("num_vertices {}", mesh_positions.len());
-    debug!("num_triangles {}", mesh_triangles.len() / 3);
+    assert!(track_triangles.len() % 3 == 0);
+    debug!("num_vertices {}", track_positions.len());
+    debug!("num_triangles {}", track_triangles.len() / 3);
     debug!("total_length {}", current_length);
     if !is_looping {
         warn!("!!! road is not looping !!!");
@@ -650,32 +728,32 @@ fn make_track_mesh(track_data: &TrackData) -> (Mesh, Mesh, f32, bool) {
     checkpoint = checkpoint.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, checkpoint_positions);
     checkpoint = checkpoint.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, checkpoint_normals);
     checkpoint = checkpoint.with_inserted_indices(Indices::U32(checkpoint_triangles));
+    // checkpoint = checkpoint.with_generated_tangents().unwrap();
 
-    let mut mesh = Mesh::new(
+    let mut track = Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
 
-    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_positions);
-    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_normals);
-    mesh = mesh.with_inserted_indices(Indices::U32(mesh_triangles));
+    track = track.with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, track_positions);
+    track = track.with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, track_normals);
+    track = track.with_inserted_indices(Indices::U32(track_triangles));
+    track = track.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, track_uvs);
+    track = track.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, track_pqs);
+    track = track.with_generated_tangents().unwrap();
 
-    // let mut channel_uvs = Mesh::ATTRIBUTE_UV_0;
-    // let mut channel_pqs = Mesh::ATTRIBUTE_UV_1;
-    // if swap_uvs {
-    //     std::mem::swap(&mut channel_uvs, &mut channel_pqs);
-    // }
-    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, mesh_uvs);
-    mesh = mesh.with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, mesh_pqs);
-
-    mesh = mesh.with_generated_tangents().unwrap();
-
-    (mesh, checkpoint, current_length, is_looping)
+    Track {
+        track,
+        checkpoint,
+        total_length: current_length,
+        is_looping,
+        checkpoint_kdtree: KdTree::build_by_ordered_float(checkpoint_segments),
+    }
 }
 
 //////////////////////////////////////////////////////////////////////
 
-static TRACK0_PIECES: [TrackPiece; 21] = [
+static TRACK0_PIECES: [TrackPiece; 22] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
@@ -694,6 +772,7 @@ static TRACK0_PIECES: [TrackPiece; 21] = [
     TrackPiece::Checkpoint(5),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
+    TrackPiece::Checkpoint(6),
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(3.0)),
     TrackPiece::Finish,
