@@ -291,7 +291,10 @@ fn update_vehicule_physics(
             Player::One => {
                 for material_handle in material_handles.iter() {
                     if let Some(material) = materials.get_mut(material_handle) {
-                        material.cursor_position = pos_next;
+                        let mut pos = pos_next;
+                        pos -= vec2(-12.0, 0.0);
+                        pos.x = -pos.x;
+                        material.cursor_position = pos;
                     }
                 }
             }
