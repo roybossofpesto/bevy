@@ -1,4 +1,4 @@
-use kd_tree::{KdPoint, KdTree};
+use crate::track;
 use std::collections::HashSet;
 
 use bevy::prelude::*;
@@ -37,8 +37,8 @@ enum Player {
 #[derive(Component, Clone, Debug)]
 struct BoatData {
     player: Player,
-    position_prev: [f32; 2],
-    position_current: [f32; 2],
+    position_prev: Vec2,
+    position_current: Vec2,
     angle_current: f32,
     crossed_checkpoints: HashSet<u8>,
 }
@@ -119,20 +119,12 @@ fn setup_vehicules(
     ));
 }
 
-impl KdPoint for BoatData {
-    type Scalar = f32;
-    type Dim = typenum::U2; // 2 dimensional tree.
-    fn at(&self, k: usize) -> f32 {
-        self.position_current[k]
-    }
-}
-
 fn resolve_vehicule_collisions(
     boats: Query<&BoatData>,
     mut labels: Query<&mut Text, With<StatusMarker>>,
-    tracks: Res<Assets<crate::track::Track>>,
+    tracks: Res<Assets<track::Track>>,
 ) {
-    let Some(track) = tracks.get(&crate::track::TRACK0_HANDLE) else {
+    let Some(track) = tracks.get(&track::TRACK0_HANDLE) else {
         return;
     };
 
@@ -145,19 +137,21 @@ fn resolve_vehicule_collisions(
     };
 
     assert!(track.is_looping);
+    let kdtree = &track.checkpoint_kdtree;
+    assert!(!kdtree.is_empty());
 
-    let mut items: Vec<BoatData> = vec![];
+    let mut ss: Vec<String> = vec![];
     for boat in boats {
-        items.push(boat.clone());
+        let bar = track::CheckpointSegment::from_single_position(&boat.position_current);
+        let foo = kdtree.nearest(&bar).unwrap();
+        ss.push(format!(
+            "{:?} [{:.2e}, {:0.2e}] {}",
+            boat.player, boat.position_current.x, boat.position_current.y, foo.item.ii
+        ));
     }
 
-    let kdtree: KdTree<BoatData> = KdTree::build_by_ordered_float(items);
-
-    assert!(!kdtree.is_empty());
-    let foo = kdtree.nearest(&[0.0, 2.0]).unwrap();
-
     assert!(!label.is_empty());
-    *label = format!("kdtree {:?} {:.02e}", foo.item.player, foo.squared_distance).into();
+    *label = ss.join("\n").into();
 }
 
 fn update_vehicule_physics(
@@ -204,8 +198,8 @@ fn update_vehicule_physics(
             let player = data.player.clone();
             *data = BoatData::from_player(player);
         }
-        let pos_prev = Vec2::from_array(data.position_prev);
-        let pos_current = Vec2::from_array(data.position_current);
+        let pos_prev = data.position_prev;
+        let pos_current = data.position_current;
         let mut physics = BoatPhysics::from_dt(dt);
         match data.player {
             Player::One => {

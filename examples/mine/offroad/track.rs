@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use kd_tree::{KdPoint, KdTree};
 
 use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
 use bevy::math::NormedVectorSpace;
@@ -349,6 +349,7 @@ fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMa
         )),
         parallax_depth_scale: 0.1,
         uv_transform: Affine2::from_scale(Vec2::ONE * scale),
+        alpha_mode: AlphaMode::Blend,
         ..StandardMaterial::default()
     }
 }
@@ -446,13 +447,43 @@ struct TrackData {
     num_segments: u32,
 }
 
+pub struct CheckpointSegment {
+    aa: Vec2,
+    bb: Vec2,
+    pub ii: u8,
+}
+
+impl CheckpointSegment {
+    pub fn from_single_position(xx: &Vec2) -> Self {
+        Self {
+            aa: xx.clone().into(),
+            bb: xx.clone().into(),
+            ii: 255,
+        }
+    }
+}
+
+impl KdPoint for CheckpointSegment {
+    type Scalar = f32;
+    type Dim = typenum::U4; // 4 dimensional tree.
+    fn at(&self, kk: usize) -> f32 {
+        match kk {
+            0 => self.aa.x,
+            1 => self.bb.x,
+            2 => self.aa.y,
+            3 => self.bb.y,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Asset, TypePath)]
 pub struct Track {
     pub track: Mesh,
     pub checkpoint: Mesh,
     pub total_length: f32,
     pub is_looping: bool,
-    pub checkpoint_to_segments: HashMap<u8, (Vec2, Vec2)>,
+    pub checkpoint_kdtree: KdTree<CheckpointSegment>,
 }
 
 fn prepare_track(track_data: &TrackData) -> Track {
@@ -497,19 +528,23 @@ fn prepare_track(track_data: &TrackData) -> Track {
         next_vertex
     };
 
-    let mut checkpoint_to_segments: HashMap<u8, (Vec2, Vec2)> = HashMap::new();
+    let mut checkpoint_segments: Vec<CheckpointSegment> = vec![];
     let mut push_checkpoint_segment =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, index: u8| -> () {
             let righthand = forward.cross(track_data.initial_up);
             let aa = position + righthand * left;
             let bb = position + righthand * right;
-            let proj = Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
-                .transpose();
-            let aa_ = proj * (aa - track_data.initial_position);
-            let bb_ = proj * (bb - track_data.initial_position);
-            assert!(f32::abs(aa_.z) < 1e-5);
-            assert!(f32::abs(bb_.z) < 1e-5);
-            checkpoint_to_segments.insert(index, (aa_.xy(), bb_.xy()));
+            // let proj = Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
+            //     .transpose();
+            // let aa_ = proj * (aa - track_data.initial_position);
+            // let bb_ = proj * (bb - track_data.initial_position);
+            // assert!(f32::abs(aa_.z) < 1e-5);
+            // assert!(f32::abs(bb_.z) < 1e-5);
+            checkpoint_segments.push(CheckpointSegment {
+                aa: aa.xz(),
+                bb: bb.xz(),
+                ii: index,
+            })
         };
 
     let mut track_positions: Vec<Vec3> = vec![];
@@ -713,7 +748,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
         checkpoint,
         total_length: current_length,
         is_looping,
-        checkpoint_to_segments,
+        checkpoint_kdtree: KdTree::build_by_ordered_float(checkpoint_segments),
     }
 }
 
