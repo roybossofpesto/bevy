@@ -374,7 +374,7 @@ enum TrackPiece {
     Start,
     Straight(StraightData),
     Corner(CornerData),
-    Checkpoint(u8),
+    Checkpoint,
     Finish,
 }
 
@@ -486,6 +486,7 @@ pub struct Track {
     pub total_length: f32,
     pub is_looping: bool,
     pub checkpoint_kdtree: KdTree<CheckpointSegment>,
+    pub checkpoint_count: u8,
 }
 
 fn prepare_track(track_data: &TrackData) -> Track {
@@ -532,7 +533,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
 
     let mut checkpoint_segments: Vec<CheckpointSegment> = vec![];
     let mut push_checkpoint_segment =
-        |position: &Vec3, forward: &Vec3, left: f32, right: f32, index: u8| -> () {
+        |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u8 {
             let righthand = forward.cross(track_data.initial_up);
             let aa = position + righthand * left;
             let bb = position + righthand * right;
@@ -542,11 +543,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
             // let bb_ = proj * (bb - track_data.initial_position);
             // assert!(f32::abs(aa_.z) < 1e-5);
             // assert!(f32::abs(bb_.z) < 1e-5);
+            let ii = checkpoint_segments.len() as u8;
             checkpoint_segments.push(CheckpointSegment {
                 aa: aa.xz(),
                 bb: bb.xz(),
-                ii: index,
-            })
+                ii,
+            });
+            ii
         };
 
     let mut track_positions: Vec<Vec3> = vec![];
@@ -620,13 +623,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     current_length,
                 );
                 assert!(foo == 0);
-                push_checkpoint_segment(
+                let bar = push_checkpoint_segment(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
-                    0,
                 );
+                assert!(bar == 0);
             }
             TrackPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
@@ -691,8 +694,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     is_looping,
                 );
             }
-            TrackPiece::Checkpoint(index) => {
-                debug!("Checkpoint {}", index);
+            TrackPiece::Checkpoint => {
                 push_checkpoint(
                     &current_position,
                     &current_forward,
@@ -705,13 +707,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     -current_right,
                     -current_left,
                 );
-                push_checkpoint_segment(
+                let bar = push_checkpoint_segment(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
-                    index.clone(),
                 );
+                debug!("Checkpoint {}", bar);
             }
         }
     }
@@ -757,6 +759,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
         checkpoint,
         total_length: current_length,
         is_looping,
+        checkpoint_count: checkpoint_segments.len() as u8,
         checkpoint_kdtree: KdTree::build_by_ordered_float(checkpoint_segments),
     }
 }
@@ -767,22 +770,22 @@ static TRACK0_PIECES: [TrackPiece; 22] = [
     TrackPiece::Start,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::left_turn()),
-    TrackPiece::Checkpoint(1),
+    TrackPiece::Checkpoint,
     TrackPiece::Straight(StraightData::from_length(8.0)),
-    TrackPiece::Checkpoint(2),
+    TrackPiece::Checkpoint,
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Checkpoint(3),
+    TrackPiece::Checkpoint,
     TrackPiece::Straight(StraightData::default()),
     TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Checkpoint(4),
+    TrackPiece::Checkpoint,
     TrackPiece::Straight(StraightData::from_length(14.0)),
-    TrackPiece::Checkpoint(5),
+    TrackPiece::Checkpoint,
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(11.0)),
-    TrackPiece::Checkpoint(6),
+    TrackPiece::Checkpoint,
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::default()),
-    TrackPiece::Checkpoint(7),
+    TrackPiece::Checkpoint,
     TrackPiece::Corner(CornerData::right_turn()),
     TrackPiece::Straight(StraightData::from_length(3.0)),
     TrackPiece::Finish,
