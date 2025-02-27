@@ -1,6 +1,5 @@
 use crate::track;
 
-use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt;
 use std::time::Duration;
@@ -42,18 +41,46 @@ impl fmt::Display for Player {
     }
 }
 
+#[derive(Clone)]
+struct LapStat {
+    top_start: Duration,
+    checkpoint_to_tops: HashMap<u8, Duration>,
+    top_finish: Duration,
+}
+
+impl LapStat {
+    fn from(top: Duration) -> Self {
+        Self {
+            top_start: top,
+            checkpoint_to_tops: HashMap::new(),
+            top_finish: top,
+        }
+    }
+
+    fn elapsed_secs(&self) -> f32 {
+        if self.top_start == Duration::MAX || self.top_finish == Duration::MAX {
+            return 0.0;
+        }
+        if self.top_start == self.top_finish {
+            return 0.0;
+        }
+        assert!(self.top_start != Duration::MAX);
+        assert!(self.top_finish != Duration::MAX);
+        assert!(self.top_start < self.top_finish);
+        (self.top_finish - self.top_start).as_secs_f32()
+    }
+}
+
 #[derive(Component, Clone)]
 struct BoatData {
     player: Player,
     position_previous: Vec2,
     position_current: Vec2,
     angle_current: f32,
-    crossed_checkpoints: HashMap<u8, Duration>,
+    current_stat: LapStat,
+    maybe_best_stat: Option<LapStat>,
     lap_count: u32,
 }
-
-#[derive(Component)]
-struct StatusMarker;
 
 impl BoatData {
     fn from_player(player: Player) -> Self {
@@ -65,7 +92,8 @@ impl BoatData {
                 position_previous: POS_P1.xz().into(),
                 position_current: POS_P1.xz().into(),
                 angle_current: PI,
-                crossed_checkpoints: HashMap::new(),
+                current_stat: LapStat::from(Duration::MAX),
+                maybe_best_stat: None,
                 lap_count: 0,
             },
             Player::Two => BoatData {
@@ -73,12 +101,16 @@ impl BoatData {
                 position_previous: POS_P2.xz().into(),
                 position_current: POS_P2.xz().into(),
                 angle_current: PI,
-                crossed_checkpoints: HashMap::new(),
+                current_stat: LapStat::from(Duration::MAX),
+                maybe_best_stat: None,
                 lap_count: 0,
             },
         }
     }
 }
+
+#[derive(Component)]
+struct StatusMarker;
 
 fn setup_vehicules(
     mut commands: Commands,
@@ -108,25 +140,46 @@ fn setup_vehicules(
         BoatData::from_player(Player::Two),
     ));
 
-    commands.spawn((
-        Text::new("status"),
-        TextFont {
-            font_size: 22.0,
-            ..default()
-        },
-        Node {
+    commands
+        .spawn(Node {
             position_type: PositionType::Absolute,
             top: Val::Px(5.0),
             right: Val::Px(5.0),
             ..default()
-        },
-        StatusMarker,
-    ));
+        })
+        .with_children(|parent| {
+            let node = Node {
+                margin: UiRect {
+                    left: Val::Px(15.0),
+                    ..default()
+                },
+                ..default()
+            };
+            let font = TextFont {
+                font_size: 16.0,
+                ..default()
+            };
+            let layout = TextLayout::new_with_justify(JustifyText::Right);
+            parent.spawn((
+                Text::new("status p1"),
+                font.clone(),
+                layout.clone(),
+                node.clone(),
+                StatusMarker,
+            ));
+            parent.spawn((
+                Text::new("status p2"),
+                font.clone(),
+                layout.clone(),
+                node.clone(),
+                StatusMarker,
+            ));
+        });
 }
 
 fn resolve_checkpoints(
     mut boats: Query<&mut BoatData>,
-    mut labels: Query<&mut Text, With<StatusMarker>>,
+    labels: Query<&mut Text, With<StatusMarker>>,
     tracks: Res<Assets<track::Track>>,
     time: Res<Time>,
 ) {
@@ -138,15 +191,9 @@ fn resolve_checkpoints(
         return;
     }
 
-    let Ok(mut label) = labels.get_single_mut() else {
-        return;
-    };
-
     assert!(track.is_looping);
     assert!(!track.track_kdtree.is_empty());
     assert!(!track.checkpoint_kdtree.is_empty());
-
-    let top_now = time.elapsed();
 
     // bounce track boundary
     for mut boat in &mut boats {
@@ -161,8 +208,10 @@ fn resolve_checkpoints(
         }
     }
 
-    // update crossed checkpoints & lap counts
+    // update crossed checkpoints
+    let top_now = time.elapsed();
     for mut boat in &mut boats {
+        boat.current_stat.top_finish = top_now;
         let query_segment =
             track::Segment::from_endpoints(boat.position_current, boat.position_previous);
         let closest_segment = track.checkpoint_kdtree.nearest(&query_segment).unwrap();
@@ -170,46 +219,91 @@ fn resolve_checkpoints(
         assert!(closest_segment.item.ii != 255);
         if closest_segment.item.intersects(&query_segment) {
             if closest_segment.item.ii == 0 {
-                let mut crossed_all_checkpoints = true;
-                for kk in 0..track.checkpoint_count {
-                    crossed_all_checkpoints &= boat.crossed_checkpoints.contains_key(&kk);
+                if boat.current_stat.top_start == Duration::MAX {
+                    boat.current_stat.top_start = top_now;
+                } else {
+                    let mut crossed_all_checkpoints = true;
+                    for kk in 1..track.checkpoint_count {
+                        crossed_all_checkpoints &=
+                            boat.current_stat.checkpoint_to_tops.contains_key(&kk);
+                    }
+                    if crossed_all_checkpoints {
+                        warn!(
+                            "player {} completed a lap in {:>6.3}",
+                            boat.player,
+                            boat.current_stat.elapsed_secs(),
+                        );
+                        boat.maybe_best_stat = Some(match &boat.maybe_best_stat {
+                            None => boat.current_stat.clone(),
+                            Some(best_stat) => {
+                                if boat.current_stat.elapsed_secs() < best_stat.elapsed_secs() {
+                                    boat.current_stat.clone()
+                                } else {
+                                    best_stat.clone()
+                                }
+                            }
+                        });
+                        boat.lap_count;
+                        boat.current_stat = LapStat::from(top_now);
+                    }
                 }
-                if crossed_all_checkpoints {
-                    boat.lap_count += 1;
-                    boat.crossed_checkpoints.clear();
-                }
+            } else {
+                boat.current_stat
+                    .checkpoint_to_tops
+                    .insert(closest_segment.item.ii, top_now);
             }
-            boat.crossed_checkpoints
-                .insert(closest_segment.item.ii, top_now);
         }
     }
 
     // prepare ui status label
-    let mut ss: Vec<String> = vec![];
-    for boat in &boats {
-        let mut lap_duration = top_now;
-        let mut rr = String::new();
-        for kk in 0..track.checkpoint_count {
-            let foo = match boat.crossed_checkpoints.get(&kk) {
-                Some(duration) => {
-                    lap_duration = min(lap_duration, *duration);
-                    "X"
-                }
-                None => "_",
-            };
-            rr = format!("{}{}", rr, foo)
-        }
-        lap_duration = top_now - lap_duration;
+    assert!(boats.iter().len() == labels.iter().len());
+    for (boat, mut label) in boats.iter().zip(labels) {
+        let mut ss: Vec<String> = vec![];
         ss.push(format!(
-            "{} {:>6.3} {} {}",
+            "{} lap{} {:>6.3} {:>6.3}",
             boat.player,
-            lap_duration.as_secs_f32(),
-            rr,
             boat.lap_count,
+            boat.current_stat.elapsed_secs(),
+            match &boat.maybe_best_stat {
+                None => 0.0,
+                Some(best_stat) => best_stat.elapsed_secs(),
+            },
         ));
+        match &boat.maybe_best_stat {
+            None => {
+                for kk in 1..track.checkpoint_count {
+                    ss.push(match boat.current_stat.checkpoint_to_tops.get(&kk) {
+                        Some(duration) => format!(
+                            "#{} {:>6.3}       ",
+                            kk,
+                            (*duration - boat.current_stat.top_start).as_secs_f32()
+                        ),
+                        None => "_       ".into(),
+                    });
+                }
+            }
+            Some(best_stat) => {
+                for kk in 1..track.checkpoint_count {
+                    let best_duration = best_stat.checkpoint_to_tops.get(&kk).unwrap();
+                    let best_delta = (*best_duration - best_stat.top_start).as_secs_f32();
+                    ss.push(match boat.current_stat.checkpoint_to_tops.get(&kk) {
+                        Some(current_duration) => {
+                            let current_delta = (*current_duration - boat.current_stat.top_start).as_secs_f32();
+                            format!(
+                                "#{} {:>6.3} {:>+5.3}",
+                                kk,
+                                current_delta,
+                                current_delta - best_delta,
+                            )
+                        }
+                        None => format!("_ {:>6.3}", best_delta),
+                    });
+                }
+            }
+        }
+
+        *label = ss.join("\n").into();
     }
-    assert!(!label.is_empty());
-    *label = ss.join("\n").into();
 }
 
 fn update_vehicule_physics(
