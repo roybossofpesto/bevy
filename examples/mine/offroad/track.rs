@@ -239,7 +239,7 @@ fn make_racing_line_material(
         lateral_range: Vec2::new(-0.8, 0.8),
         time: 0.0,
         cursor_position: Vec2::ZERO,
-        cursor_radius: 0.5,
+        cursor_radius: 0.25,
         color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
             "textures/slice_square.png",
@@ -550,20 +550,24 @@ fn prepare_track(track_data: &TrackData) -> Track {
     let mut checkpoint_triangles: Vec<u32> = vec![];
     let mut push_checkpoint_gate =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
+            const WIDTH: f32 = 0.2;
+            const EPSILON: f32 = 1e-3;
             let righthand = forward.cross(track_data.initial_up);
-            let aa = position + righthand * left;
-            let bb = position + righthand * right;
-            let cc = aa + track_data.initial_up;
-            let dd = bb + track_data.initial_up;
+            let aa = position + righthand * left - WIDTH * forward / 2.0
+                + EPSILON * track_data.initial_up;
+            let bb = position + righthand * right - WIDTH * forward / 2.0
+                + EPSILON * track_data.initial_up;
+            let cc = aa + WIDTH * forward;
+            let dd = bb + WIDTH * forward;
             let next_vertex = checkpoint_positions.len() as u32;
             checkpoint_positions.push(aa);
             checkpoint_positions.push(bb);
             checkpoint_positions.push(cc);
             checkpoint_positions.push(dd);
-            checkpoint_normals.push(-forward.clone());
-            checkpoint_normals.push(-forward.clone());
-            checkpoint_normals.push(-forward.clone());
-            checkpoint_normals.push(-forward.clone());
+            checkpoint_normals.push(track_data.initial_up);
+            checkpoint_normals.push(track_data.initial_up);
+            checkpoint_normals.push(track_data.initial_up);
+            checkpoint_normals.push(track_data.initial_up);
             let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
             let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
             checkpoint_triangles.append(&mut tri_aa);
@@ -760,12 +764,6 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     &current_forward,
                     current_left,
                     current_right,
-                );
-                push_checkpoint_gate(
-                    &current_position,
-                    &-current_forward,
-                    -current_right,
-                    -current_left,
                 );
                 let bar = push_checkpoint_segment(
                     &current_position,
