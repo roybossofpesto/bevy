@@ -7,11 +7,11 @@ use bevy::animation::{animated_field, AnimationTarget, AnimationTargetId};
 use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, GREEN, RED};
 #[cfg(feature = "bevy_dev_tools")]
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
+use bevy::math::ops;
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
 use bevy::ui::RelativeCursorPosition;
-use bevy::math::ops;
 
 use core::f32::consts::PI;
 
@@ -81,10 +81,7 @@ struct ButtonData {
 
 impl ButtonData {
     const fn new(label: &'static str) -> Self {
-        Self {
-            label,
-            count: 0,
-        }
+        Self { label, count: 0 }
     }
 }
 

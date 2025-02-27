@@ -463,11 +463,7 @@ impl Align {
 
 impl CheckpointSegment {
     pub fn from_endpoints(aa: Vec2, bb: Vec2) -> Self {
-        Self {
-            aa,
-            bb,
-            ii: 255,
-        }
+        Self { aa, bb, ii: 255 }
     }
 
     pub fn intersects(pp: &Self, qq: &Self) -> bool {
