@@ -522,7 +522,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
     let mut checkpoint_positions: Vec<Vec3> = vec![];
     let mut checkpoint_normals: Vec<Vec3> = vec![];
     let mut checkpoint_triangles: Vec<u32> = vec![];
-    let mut push_checkpoint = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
+    let mut push_checkpoint_gate = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
         let righthand = forward.cross(track_data.initial_up);
         let aa = position + righthand * left;
         let bb = position + righthand * right;
@@ -708,13 +708,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
                 );
             }
             TrackPiece::Checkpoint => {
-                push_checkpoint(
+                push_checkpoint_gate(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
                 );
-                push_checkpoint(
+                push_checkpoint_gate(
                     &current_position,
                     &-current_forward,
                     -current_right,
