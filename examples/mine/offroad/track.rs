@@ -440,7 +440,7 @@ pub struct CheckpointSegment {
 #[derive(PartialEq)]
 enum Align {
     Left,
-    Colinear,
+    Collinear,
     Right,
 }
 
@@ -450,7 +450,7 @@ impl Align {
         let xz = zz - xx;
         let cross = xy.x * xz.y - xy.y * xz.x;
         if f32::abs(cross) < 1e-7 {
-            return Align::Colinear;
+            return Align::Collinear;
         };
         if cross > 0.0 {
             Align::Left
