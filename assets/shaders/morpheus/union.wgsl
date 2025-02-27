@@ -39,12 +39,12 @@ fn fragment(
     let world_direction = normalize(out.world_position - eye_position);
 
     var pos = out.world_position;
-    var dist = signed_disance_function(pos);
+    var dist = signed_distance_function(pos);
     for (var kk=0; kk<64; kk++) {
         if (dist <= 0.0) { break; }
         if (length(pos - vec3(0.0, 0.0, 2.0)) > sqrt(3.0)) { break; }
         pos += world_direction * dist;
-        dist = signed_disance_function(pos);
+        dist = signed_distance_function(pos);
     }
 
     if dist > 1e-3 {
@@ -53,9 +53,9 @@ fn fragment(
 
     let hh = 1e-3;
     let world_grad = normalize(vec3(
-        signed_disance_function(pos + vec3(hh, 0.0, 0.0)) - signed_disance_function(pos - vec3(hh, 0.0, 0.0)), 
-        signed_disance_function(pos + vec3(0.0, hh, 0.0)) - signed_disance_function(pos - vec3(0.0, hh, 0.0)), 
-        signed_disance_function(pos + vec3(0.0, 0.0, hh)) - signed_disance_function(pos - vec3(0.0, 0.0, hh)), 
+        signed_distance_function(pos + vec3(hh, 0.0, 0.0)) - signed_distance_function(pos - vec3(hh, 0.0, 0.0)), 
+        signed_distance_function(pos + vec3(0.0, hh, 0.0)) - signed_distance_function(pos - vec3(0.0, hh, 0.0)), 
+        signed_distance_function(pos + vec3(0.0, 0.0, hh)) - signed_distance_function(pos - vec3(0.0, 0.0, hh)), 
     ));
     let view_grad = normalize(view_transformations::direction_world_to_view(world_grad));
     
@@ -72,7 +72,7 @@ fn fragment(
     return color;
 }
 
-fn signed_disance_function(pos_: vec3<f32>) -> f32 {
+fn signed_distance_function(pos_: vec3<f32>) -> f32 {
     let pos = pos_ - vec3(0.0, 0.0, 2.0);
     let aa = length(pos - vec3(.2, 0, 0)) - 0.6;
     let bb = length(pos + vec3(.2, 0, 0)) - 0.6;
