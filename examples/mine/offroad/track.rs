@@ -431,12 +431,6 @@ struct TrackData {
     num_segments: u32,
 }
 
-pub struct CheckpointSegment {
-    aa: Vec2,
-    bb: Vec2,
-    pub ii: u8,
-}
-
 #[derive(PartialEq)]
 enum Align {
     Left,
@@ -460,13 +454,15 @@ impl Align {
     }
 }
 
-impl CheckpointSegment {
-    pub fn from_endpoints(aa: &Vec2, bb: &Vec2) -> Self {
-        Self {
-            aa: aa.clone().into(),
-            bb: bb.clone().into(),
-            ii: 255,
-        }
+pub struct Segment {
+    aa: Vec2,
+    bb: Vec2,
+    pub ii: u8,
+}
+
+impl Segment {
+    pub fn from_endpoints(aa: Vec2, bb: Vec2) -> Self {
+        Self { aa, bb, ii: 255 }
     }
 
     pub fn intersects(pp: &Self, qq: &Self) -> bool {
@@ -476,9 +472,15 @@ impl CheckpointSegment {
         let pb = Align::from_triplet(&qq.aa, &qq.bb, &pp.bb);
         qa != qb && pa != pb
     }
+
+    pub fn clips(pp: &Self, qq: &Self) -> bool {
+        let qa = Align::from_triplet(&pp.aa, &pp.bb, &qq.aa);
+        let qb = Align::from_triplet(&pp.aa, &pp.bb, &qq.bb);
+        qa == Align::Left || qb == Align::Left
+    }
 }
 
-impl KdPoint for CheckpointSegment {
+impl KdPoint for Segment {
     type Scalar = f32;
     type Dim = typenum::U4; // 4 dimensional tree.
     fn at(&self, kk: usize) -> f32 {
@@ -498,7 +500,8 @@ pub struct Track {
     pub checkpoint: Mesh,
     pub total_length: f32,
     pub is_looping: bool,
-    pub checkpoint_kdtree: KdTree<CheckpointSegment>,
+    pub track_kdtree: KdTree<Segment>,
+    pub checkpoint_kdtree: KdTree<Segment>,
     pub checkpoint_count: u8,
 }
 
@@ -522,42 +525,37 @@ fn prepare_track(track_data: &TrackData) -> Track {
     let mut checkpoint_positions: Vec<Vec3> = vec![];
     let mut checkpoint_normals: Vec<Vec3> = vec![];
     let mut checkpoint_triangles: Vec<u32> = vec![];
-    let mut push_checkpoint_gate = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
-        let righthand = forward.cross(track_data.initial_up);
-        let aa = position + righthand * left;
-        let bb = position + righthand * right;
-        let cc = aa + track_data.initial_up;
-        let dd = bb + track_data.initial_up;
-        let next_vertex = checkpoint_positions.len() as u32;
-        checkpoint_positions.push(aa);
-        checkpoint_positions.push(bb);
-        checkpoint_positions.push(cc);
-        checkpoint_positions.push(dd);
-        checkpoint_normals.push(-forward.clone());
-        checkpoint_normals.push(-forward.clone());
-        checkpoint_normals.push(-forward.clone());
-        checkpoint_normals.push(-forward.clone());
-        let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
-        let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
-        checkpoint_triangles.append(&mut tri_aa);
-        checkpoint_triangles.append(&mut tri_bb);
-        next_vertex
-    };
+    let mut push_checkpoint_gate =
+        |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
+            let righthand = forward.cross(track_data.initial_up);
+            let aa = position + righthand * left;
+            let bb = position + righthand * right;
+            let cc = aa + track_data.initial_up;
+            let dd = bb + track_data.initial_up;
+            let next_vertex = checkpoint_positions.len() as u32;
+            checkpoint_positions.push(aa);
+            checkpoint_positions.push(bb);
+            checkpoint_positions.push(cc);
+            checkpoint_positions.push(dd);
+            checkpoint_normals.push(-forward.clone());
+            checkpoint_normals.push(-forward.clone());
+            checkpoint_normals.push(-forward.clone());
+            checkpoint_normals.push(-forward.clone());
+            let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
+            let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
+            checkpoint_triangles.append(&mut tri_aa);
+            checkpoint_triangles.append(&mut tri_bb);
+            next_vertex
+        };
 
-    let mut checkpoint_segments: Vec<CheckpointSegment> = vec![];
+    let mut checkpoint_segments: Vec<Segment> = vec![];
     let mut push_checkpoint_segment =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u8 {
             let righthand = forward.cross(track_data.initial_up);
             let aa = position + righthand * left;
             let bb = position + righthand * right;
-            // let proj = Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
-            //     .transpose();
-            // let aa_ = proj * (aa - track_data.initial_position);
-            // let bb_ = proj * (bb - track_data.initial_position);
-            // assert!(f32::abs(aa_.z) < 1e-5);
-            // assert!(f32::abs(bb_.z) < 1e-5);
             let ii = checkpoint_segments.len() as u8;
-            checkpoint_segments.push(CheckpointSegment {
+            checkpoint_segments.push(Segment {
                 aa: aa.xz(),
                 bb: bb.xz(),
                 ii,
@@ -570,6 +568,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
     let mut track_triangles: Vec<u32> = vec![];
     let mut track_uvs: Vec<Vec2> = vec![];
     let mut track_pqs: Vec<Vec2> = vec![];
+    let mut track_segments: Vec<Segment> = vec![];
     let mut push_section =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
             let left_pos = position + forward.cross(track_data.initial_up) * left;
@@ -610,6 +609,12 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     track_triangles.append(&mut tri_aa);
                     track_triangles.append(&mut tri_bb);
                 }
+                let left_index_ = (next_vertex - num_segments - 1) as usize;
+                let right_index_ = (next_vertex - 1) as usize;
+                let left_pos_ = track_positions[left_index_];
+                let right_pos_ = track_positions[right_index_];
+                track_segments.push(Segment::from_endpoints(left_pos_.xz(), left_pos.xz()));
+                track_segments.push(Segment::from_endpoints(right_pos.xz(), right_pos_.xz()));
             }
             next_vertex
         };
@@ -773,6 +778,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
         total_length: current_length,
         is_looping,
         checkpoint_count: checkpoint_segments.len() as u8,
+        track_kdtree: KdTree::build_by_ordered_float(track_segments),
         checkpoint_kdtree: KdTree::build_by_ordered_float(checkpoint_segments),
     }
 }

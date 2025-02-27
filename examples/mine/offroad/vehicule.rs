@@ -50,6 +50,7 @@ struct BoatData {
     angle_current: f32,
     crossed_checkpoints: HashMap<u8, Duration>,
     lap_count: u32,
+    outside_track: bool,
 }
 
 #[derive(Component)]
@@ -67,6 +68,7 @@ impl BoatData {
                 angle_current: PI,
                 crossed_checkpoints: HashMap::new(),
                 lap_count: 0,
+                outside_track: false,
             },
             Player::Two => BoatData {
                 player: Player::Two,
@@ -75,6 +77,7 @@ impl BoatData {
                 angle_current: PI,
                 crossed_checkpoints: HashMap::new(),
                 lap_count: 0,
+                outside_track: false,
             },
         }
     }
@@ -143,21 +146,29 @@ fn resolve_checkpoints(
     };
 
     assert!(track.is_looping);
-    let kdtree = &track.checkpoint_kdtree;
-    assert!(!kdtree.is_empty());
+    assert!(!track.track_kdtree.is_empty());
+    assert!(!track.checkpoint_kdtree.is_empty());
 
     let top_now = time.elapsed();
 
+    // bounce track boundary
+    for mut boat in &mut boats {
+        let query_segment =
+            track::Segment::from_endpoints(boat.position_current, boat.position_previous);
+        let closest_segment = track.track_kdtree.nearest(&query_segment).unwrap();
+        assert!(query_segment.ii == 255);
+        assert!(closest_segment.item.ii == 255);
+        boat.outside_track = !track::Segment::clips(closest_segment.item, &query_segment);
+    }
+
     // update crossed checkpoints & lap counts
     for mut boat in &mut boats {
-        let query_segment = track::CheckpointSegment::from_endpoints(
-            &boat.position_current,
-            &boat.position_previous,
-        );
-        let closest_segment = kdtree.nearest(&query_segment).unwrap();
-        if track::CheckpointSegment::intersects(&query_segment, closest_segment.item) {
-            assert!(query_segment.ii == 255);
-            assert!(closest_segment.item.ii != 255);
+        let query_segment =
+            track::Segment::from_endpoints(boat.position_current, boat.position_previous);
+        let closest_segment = track.checkpoint_kdtree.nearest(&query_segment).unwrap();
+        assert!(query_segment.ii == 255);
+        assert!(closest_segment.item.ii != 255);
+        if track::Segment::intersects(closest_segment.item, &query_segment) {
             if closest_segment.item.ii == 0 {
                 let mut crossed_all_checkpoints = true;
                 for kk in 0..track.checkpoint_count {
@@ -190,11 +201,15 @@ fn resolve_checkpoints(
         }
         lap_duration = top_now - lap_duration;
         ss.push(format!(
-            "{} {:>6.3} {} {}",
+            "{} {:>6.3} {} {} {}",
             boat.player,
             lap_duration.as_secs_f32(),
             rr,
             boat.lap_count,
+            match boat.outside_track {
+                true => "O",
+                false => "I",
+            },
         ));
     }
     assert!(!label.is_empty());
