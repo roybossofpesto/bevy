@@ -1,8 +1,7 @@
 use kd_tree::{KdPoint, KdTree};
 
 use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
-use bevy::math::NormedVectorSpace;
-use bevy::math::{Mat3, Quat, Vec2, Vec3};
+use bevy::math::{Mat2, Mat3, NormedVectorSpace, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
 use bevy::reflect::TypePath;
 use bevy::render::mesh::Mesh;
@@ -365,6 +364,7 @@ struct StraightData {
     left: f32,
     right: f32,
     length: f32,
+    num_quads: u32,
 }
 
 impl StraightData {
@@ -373,11 +373,17 @@ impl StraightData {
             left: -1.0,
             right: 1.0,
             length: 2.0,
+            num_quads: 4,
         }
     }
     const fn from_length(length: f32) -> Self {
         Self {
             length,
+            num_quads: if 2.0 * length < 1.0 {
+                1
+            } else {
+                (2.0 * length) as u32
+            },
             ..StraightData::default()
         }
     }
@@ -393,6 +399,11 @@ impl StraightData {
             left,
             right,
             length,
+            num_quads: if 2.0 * length < 1.0 {
+                1
+            } else {
+                (2.0 * length) as u32
+            },
         }
     }
 }
@@ -447,9 +458,9 @@ impl Align {
             return Align::Colinear;
         };
         if cross > 0.0 {
-            Align::Left
-        } else {
             Align::Right
+        } else {
+            Align::Left
         }
     }
 }
@@ -465,7 +476,8 @@ impl Segment {
         Self { aa, bb, ii: 255 }
     }
 
-    pub fn intersects(pp: &Self, qq: &Self) -> bool {
+    pub fn intersects(&self, qq: &Self) -> bool {
+        let pp = self;
         let qa = Align::from_triplet(&pp.aa, &pp.bb, &qq.aa);
         let qb = Align::from_triplet(&pp.aa, &pp.bb, &qq.bb);
         let pa = Align::from_triplet(&qq.aa, &qq.bb, &pp.aa);
@@ -473,10 +485,19 @@ impl Segment {
         qa != qb && pa != pb
     }
 
-    pub fn clips(pp: &Self, qq: &Self) -> bool {
+    pub fn clips(&self, qq: &Self) -> bool {
+        let pp = self;
         let qa = Align::from_triplet(&pp.aa, &pp.bb, &qq.aa);
         let qb = Align::from_triplet(&pp.aa, &pp.bb, &qq.bb);
         qa == Align::Left || qb == Align::Left
+    }
+
+    pub fn mirror(&self, xx: Vec2) -> Vec2 {
+        let ee = (self.bb - self.aa).normalize();
+        let ff = Vec2::new(-ee.y, ee.x);
+        let mut mm = Mat2::from_cols(ee, ff).transpose();
+        mm = mm.transpose() * Mat2::from_diagonal(Vec2::new(1.0, -1.0)) * mm;
+        self.aa + mm * (xx - self.aa)
     }
 }
 
@@ -613,8 +634,16 @@ fn prepare_track(track_data: &TrackData) -> Track {
                 let right_index_ = (next_vertex - 1) as usize;
                 let left_pos_ = track_positions[left_index_];
                 let right_pos_ = track_positions[right_index_];
-                track_segments.push(Segment::from_endpoints(left_pos_.xz(), left_pos.xz()));
-                track_segments.push(Segment::from_endpoints(right_pos.xz(), right_pos_.xz()));
+                track_segments.push(Segment {
+                    aa: left_pos_.xz(),
+                    bb: left_pos.xz(),
+                    ii: 0,
+                });
+                track_segments.push(Segment {
+                    aa: right_pos.xz(),
+                    bb: right_pos_.xz(),
+                    ii: 1,
+                });
             }
             next_vertex
         };
@@ -651,21 +680,32 @@ fn prepare_track(track_data: &TrackData) -> Track {
             }
             TrackPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
+                assert!(current_left < current_right);
+                assert!(data.num_quads > 0);
+                for kk in 0..data.num_quads {
+                    let aa = (kk + 1) as f32 / data.num_quads as f32;
+                    assert!(aa > 0.0);
+                    assert!(aa <= 1.0);
+                    let bb = 3.0 * f32::powi(aa, 2) - 2.0 * f32::powi(aa, 3);
+                    assert!(bb > 0.0);
+                    assert!(bb <= 1.0);
+                    let pos = current_position + current_forward * aa * data.length;
+                    let len = current_length + aa * data.length;
+                    let foo = push_section(
+                        &pos,
+                        &current_forward,
+                        current_left * (1.0 - bb) + data.left * bb,
+                        current_right * (1.0 - bb) + data.right * bb,
+                        len,
+                    );
+                    assert!(foo > 0);
+                }
                 current_position += current_forward * data.length;
                 current_length += data.length;
                 assert!(current_length != 0.0);
-                assert!(current_left < current_right);
                 current_left = data.left;
                 current_right = data.right;
                 assert!(current_left < current_right);
-                let foo = push_section(
-                    &current_position,
-                    &current_forward,
-                    current_left,
-                    current_right,
-                    current_length,
-                );
-                assert!(foo > 0);
             }
             TrackPiece::Corner(data) => {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);

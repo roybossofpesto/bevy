@@ -27,7 +27,6 @@ fn main() {
         });
     }
 
-    /*
     #[cfg(feature = "bevy_dev_tools")]
     {
         // wireframe toggle
@@ -50,7 +49,6 @@ fn main() {
             },
         );
     }
-    */
 
     app.add_plugins(scene::ScenePlugin);
     app.add_plugins(simu::SimuPlugin);
