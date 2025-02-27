@@ -3,7 +3,7 @@
 mod scene;
 mod simu;
 mod track;
-mod vehicule;
+mod vehicle;
 
 use bevy::prelude::*;
 
@@ -55,7 +55,7 @@ fn main() {
     app.add_plugins(scene::ScenePlugin);
     app.add_plugins(simu::SimuPlugin);
     app.add_plugins(track::TrackPlugin);
-    app.add_plugins(vehicule::VehiculePlugin);
+    app.add_plugins(vehicle::VehiclePlugin);
 
     app.run();
 }

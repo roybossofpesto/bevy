@@ -13,14 +13,14 @@ use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
 
-pub struct VehiculePlugin;
+pub struct VehiclePlugin;
 
-impl Plugin for VehiculePlugin {
+impl Plugin for VehiclePlugin {
     fn build(&self, app: &mut App) {
-        info!("** build_vehicule **");
+        info!("** build_vehicle **");
 
-        app.add_systems(Startup, setup_vehicules);
-        app.add_systems(Update, update_vehicule_physics);
+        app.add_systems(Startup, setup_vehicles);
+        app.add_systems(Update, update_vehicle_physics);
         app.add_systems(Update, resolve_checkpoints);
     }
 }
@@ -80,12 +80,12 @@ impl BoatData {
     }
 }
 
-fn setup_vehicules(
+fn setup_vehicles(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     server: Res<AssetServer>,
 ) {
-    info!("** setup_vehicules **");
+    info!("** setup_vehicles **");
 
     let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
 
@@ -201,7 +201,7 @@ fn resolve_checkpoints(
     *label = ss.join("\n").into();
 }
 
-fn update_vehicule_physics(
+fn update_vehicle_physics(
     mut boats: Query<(&mut BoatData, &mut Transform)>,
     mut materials: ResMut<Assets<track::RacingLineMaterial>>,
     material_handles: Query<&MeshMaterial3d<track::RacingLineMaterial>>,
