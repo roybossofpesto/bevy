@@ -76,27 +76,11 @@ fn populate_tracks(
         Mesh3d(meshes.add(track0.checkpoint.clone())),
         MeshMaterial3d(checkpoint0_material),
     ));
-    let track0_material = materials.add(StandardMaterial {
-        base_color_channel: UvChannel::Uv0,
-        base_color_texture: Some(asset_server.load_with_settings(
-            "textures/fantasy_ui_borders/panel-border-010.png",
-            |s: &mut _| {
-                *s = ImageLoaderSettings {
-                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
-                        // rewriting mode to repeat image,
-                        address_mode_u: ImageAddressMode::Repeat,
-                        address_mode_v: ImageAddressMode::Repeat,
-                        ..ImageSamplerDescriptor::default()
-                    }),
-                    ..ImageLoaderSettings::default()
-                }
-            },
-        )),
-        ..StandardMaterial::default()
-    });
+    let track0_material = materials.add(make_wavy_material(&asset_server, 0.6, PI / 3.0));
     commands.spawn((
+        WavyMarker,
         Mesh3d(meshes.add(track0.track.clone())),
-        MeshMaterial3d(track0_material.clone()),
+        MeshMaterial3d(track0_material),
     ));
 
     // track 1 showcases projected parametrization
@@ -128,9 +112,25 @@ fn populate_tracks(
     ));
 
     // track 2 showcases water effect
-    let track2_material = materials.add(make_wavy_material(&asset_server, 0.5));
+    let track2_material = materials.add(StandardMaterial {
+        base_color_channel: UvChannel::Uv0,
+        base_color_texture: Some(asset_server.load_with_settings(
+            "textures/fantasy_ui_borders/panel-border-010.png",
+            |s: &mut _| {
+                *s = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        // rewriting mode to repeat image,
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..ImageSamplerDescriptor::default()
+                    }),
+                    ..ImageLoaderSettings::default()
+                }
+            },
+        )),
+        ..StandardMaterial::default()
+    });
     commands.spawn((
-        WavyMarker,
         Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
@@ -275,7 +275,7 @@ fn animate_racing_line_materials(
 #[derive(Component)]
 struct WavyMarker;
 
-fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMaterial {
+fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32, angle: f32) -> StandardMaterial {
     use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
@@ -332,7 +332,9 @@ fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMa
             },
         )),
         parallax_depth_scale: 0.1,
-        uv_transform: Affine2::from_scale(Vec2::ONE * scale),
+        uv_transform: Affine2::from_mat2(
+            Mat2::from_diagonal(Vec2::ONE * scale) * Mat2::from_angle(angle),
+        ),
         ..StandardMaterial::default()
     }
 }
