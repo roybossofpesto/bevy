@@ -62,16 +62,16 @@ impl BoatData {
         match player {
             Player::One => BoatData {
                 player: Player::One,
-                position_previous: POS_P1.xz().into(),
-                position_current: POS_P1.xz().into(),
+                position_previous: POS_P1.xz(),
+                position_current: POS_P1.xz(),
                 angle_current: PI,
                 crossed_checkpoints: HashMap::new(),
                 lap_count: 0,
             },
             Player::Two => BoatData {
                 player: Player::Two,
-                position_previous: POS_P2.xz().into(),
-                position_current: POS_P2.xz().into(),
+                position_previous: POS_P2.xz(),
+                position_current: POS_P2.xz(),
                 angle_current: PI,
                 crossed_checkpoints: HashMap::new(),
                 lap_count: 0,
@@ -150,10 +150,8 @@ fn resolve_checkpoints(
 
     // update crossed checkpoints & lap counts
     for mut boat in &mut boats {
-        let query_segment = track::CheckpointSegment::from_endpoints(
-            &boat.position_current,
-            &boat.position_previous,
-        );
+        let query_segment =
+            track::CheckpointSegment::from_endpoints(boat.position_current, boat.position_previous);
         let closest_segment = kdtree.nearest(&query_segment).unwrap();
         if track::CheckpointSegment::intersects(&query_segment, closest_segment.item) {
             assert!(query_segment.ii == 255);
@@ -179,14 +177,14 @@ fn resolve_checkpoints(
         let mut lap_duration = top_now;
         let mut rr = String::new();
         for kk in 0..track.checkpoint_count {
-            let foo = match boat.crossed_checkpoints.get(&kk) {
+            let tt = match boat.crossed_checkpoints.get(&kk) {
                 Some(duration) => {
                     lap_duration = min(lap_duration, *duration);
                     "X"
                 }
                 None => "_",
             };
-            rr = format!("{}{}", rr, foo)
+            rr = format!("{}{}", rr, tt);
         }
         lap_duration = top_now - lap_duration;
         ss.push(format!(
@@ -260,7 +258,7 @@ fn update_vehicle_physics(
                 }
                 let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
                 if keyboard.pressed(KeyCode::ArrowUp) {
-                    physics.force += physics.thrust * dir_current
+                    physics.force += physics.thrust * dir_current;
                 }
                 if keyboard.pressed(KeyCode::ArrowDown) {
                     physics.friction = Vec2::ONE * 0.10;
@@ -275,7 +273,7 @@ fn update_vehicle_physics(
                 }
                 let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
                 if keyboard.pressed(KeyCode::KeyW) {
-                    physics.force += physics.thrust * dir_current
+                    physics.force += physics.thrust * dir_current;
                 }
                 if keyboard.pressed(KeyCode::KeyS) {
                     physics.friction = Vec2::ONE * 0.10;
@@ -284,21 +282,18 @@ fn update_vehicle_physics(
         };
         let pos_next = physics.compute_next_pos(pos_prev, pos_current, boat.angle_current);
         boat.position_previous = boat.position_current;
-        boat.position_current = pos_next.into();
+        boat.position_current = pos_next;
         transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
         transform.rotation = Quat::from_axis_angle(Vec3::Y, boat.angle_current);
-        match boat.player {
-            Player::One => {
-                for material_handle in material_handles.iter() {
-                    if let Some(material) = materials.get_mut(material_handle) {
-                        let mut pos = pos_next;
-                        pos -= vec2(-12.0, 0.0);
-                        pos.x = -pos.x;
-                        material.cursor_position = pos;
-                    }
+        if let Player::One = boat.player {
+            for material_handle in material_handles.iter() {
+                if let Some(material) = materials.get_mut(material_handle) {
+                    let mut pos = pos_next;
+                    pos -= vec2(-12.0, 0.0);
+                    pos.x = -pos.x;
+                    material.cursor_position = pos;
                 }
             }
-            _ => {}
-        };
+        }
     }
 }

@@ -11,6 +11,8 @@ use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
 use bevy::ui::RelativeCursorPosition;
+use bevy::math::ops;
+
 use core::f32::consts::PI;
 
 fn main() {
@@ -74,15 +76,13 @@ enum WidgetType {
 #[derive(Clone, Component)]
 struct ButtonData {
     label: &'static str,
-    index: u32,
     count: u32,
 }
 
 impl ButtonData {
-    const fn new(label: &'static str, index: u32) -> Self {
+    const fn new(label: &'static str) -> Self {
         Self {
             label,
-            index,
             count: 0,
         }
     }
@@ -106,8 +106,8 @@ impl SliderData {
 }
 
 static UI_WIDGETS: [WidgetType; 5] = [
-    WidgetType::Button(ButtonData::new("Kikou", 0)),
-    WidgetType::Button(ButtonData::new("Lol", 1)),
+    WidgetType::Button(ButtonData::new("Kikou")),
+    WidgetType::Button(ButtonData::new("Lol")),
     WidgetType::Slider(SliderData::new("AA", 0)),
     WidgetType::Slider(SliderData::new("BB", 1)),
     WidgetType::Slider(SliderData::new("Angle", 2)),
@@ -169,8 +169,8 @@ fn setup_scene(
         let angle = 2.0 * PI * aa;
         tts.push(tt);
         pps.push(Vec3::new(
-            angle.cos() * 200.0,
-            angle.sin() * 200.0,
+            ops::cos(angle) * 200.0,
+            ops::sin(angle) * 200.0,
             ANIM_DEPTH,
         ));
         rrs.push(Quat::from_axis_angle(Vec3::Z, angle + PI / 2.0));
@@ -242,13 +242,13 @@ fn update_lorentz_points(
         };
 
         let angle = (slider_data.ratio - 0.5) * PI / 4.0;
-        let cha = f32::cosh(angle);
-        let sha = f32::sinh(angle);
+        let cha = ops::cosh(angle);
+        let sha = ops::sinh(angle);
 
         for (point_data, mut point_transform) in &mut point_query {
             let xx = cha * point_data.init_xx - sha * point_data.init_yy;
             let yy = cha * point_data.init_yy - sha * point_data.init_xx;
-            *point_transform = Transform::from_xyz(xx, yy, 0.0)
+            *point_transform = Transform::from_xyz(xx, yy, 0.0);
         }
     }
 }

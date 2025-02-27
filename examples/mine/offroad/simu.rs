@@ -216,8 +216,8 @@ impl Node for SimuNode {
                     self.state = SimuState::Update(true);
                 }
             }
-            SimuState::Update(foo) => {
-                self.state = SimuState::Update(!foo);
+            SimuState::Update(aa) => {
+                self.state = SimuState::Update(!aa);
             }
         }
     }

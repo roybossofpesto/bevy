@@ -1,6 +1,7 @@
 use kd_tree::{KdPoint, KdTree};
 
 use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
+use bevy::math::ops;
 use bevy::math::NormedVectorSpace;
 use bevy::math::{Mat3, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
@@ -449,7 +450,7 @@ impl Align {
         let xy = yy - xx;
         let xz = zz - xx;
         let cross = xy.x * xz.y - xy.y * xz.x;
-        if f32::abs(cross) < 1e-7 {
+        if ops::abs(cross) < 1e-7 {
             return Align::Collinear;
         };
         if cross > 0.0 {
@@ -461,10 +462,10 @@ impl Align {
 }
 
 impl CheckpointSegment {
-    pub fn from_endpoints(aa: &Vec2, bb: &Vec2) -> Self {
+    pub fn from_endpoints(aa: Vec2, bb: Vec2) -> Self {
         Self {
-            aa: aa.clone().into(),
-            bb: bb.clone().into(),
+            aa,
+            bb,
             ii: 255,
         }
     }
@@ -503,18 +504,18 @@ pub struct Track {
 }
 
 fn prepare_track(track_data: &TrackData) -> Track {
-    assert!(f32::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
-    assert!(f32::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
+    assert!(ops::abs(track_data.initial_forward.norm() - 1.0) < 1e-5);
+    assert!(ops::abs(track_data.initial_up.norm() - 1.0) < 1e-5);
     assert!(track_data.initial_left < track_data.initial_right);
     assert!(track_data.num_segments > 0);
     assert!(track_data.pieces.len() >= 2);
     match &track_data.pieces[0] {
         TrackPiece::Start => {}
-        _ => assert!(false, "!!! first piece should be a start !!!"),
+        _ => panic!("!!! first piece should be a start !!!"),
     }
     match &track_data.pieces[track_data.pieces.len() - 1] {
         TrackPiece::Finish => {}
-        _ => assert!(false, "!!! last piece should be a finish !!!"),
+        _ => panic!("!!! last piece should be a finish !!!"),
     }
 
     let initial_righthand = track_data.initial_forward.cross(track_data.initial_up);
@@ -533,10 +534,10 @@ fn prepare_track(track_data: &TrackData) -> Track {
         checkpoint_positions.push(bb);
         checkpoint_positions.push(cc);
         checkpoint_positions.push(dd);
-        checkpoint_normals.push(-forward.clone());
-        checkpoint_normals.push(-forward.clone());
-        checkpoint_normals.push(-forward.clone());
-        checkpoint_normals.push(-forward.clone());
+        checkpoint_normals.push(-*forward);
+        checkpoint_normals.push(-*forward);
+        checkpoint_normals.push(-*forward);
+        checkpoint_normals.push(-*forward);
         let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
         let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
         checkpoint_triangles.append(&mut tri_aa);
@@ -550,12 +551,6 @@ fn prepare_track(track_data: &TrackData) -> Track {
             let righthand = forward.cross(track_data.initial_up);
             let aa = position + righthand * left;
             let bb = position + righthand * right;
-            // let proj = Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
-            //     .transpose();
-            // let aa_ = proj * (aa - track_data.initial_position);
-            // let bb_ = proj * (bb - track_data.initial_position);
-            // assert!(f32::abs(aa_.z) < 1e-5);
-            // assert!(f32::abs(bb_.z) < 1e-5);
             let ii = checkpoint_segments.len() as u8;
             checkpoint_segments.push(CheckpointSegment {
                 aa: aa.xz(),
@@ -587,7 +582,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     Mat3::from_cols(initial_righthand, track_data.initial_forward, Vec3::ZERO)
                         .transpose();
                 let pq = proj * (pos - track_data.initial_position);
-                assert!(f32::abs(pq.z) < 1e-5);
+                assert!(ops::abs(pq.z) < 1e-5);
                 track_positions.push(pos);
                 track_normals.push(track_data.initial_up);
                 track_uvs.push(uv);
@@ -614,8 +609,8 @@ fn prepare_track(track_data: &TrackData) -> Track {
             next_vertex
         };
 
-    let mut current_position = track_data.initial_position.clone();
-    let mut current_forward = track_data.initial_forward.clone();
+    let mut current_position = track_data.initial_position;
+    let mut current_forward = track_data.initial_forward;
     let mut current_length: f32 = 0.0;
     let mut is_looping: bool = false;
     let mut current_left: f32 = track_data.initial_left;
@@ -628,21 +623,21 @@ fn prepare_track(track_data: &TrackData) -> Track {
                 assert!(current_left == track_data.initial_left);
                 assert!(current_right == track_data.initial_right);
                 assert!(current_left < current_right);
-                let foo = push_section(
+                let section_index = push_section(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
                     current_length,
                 );
-                assert!(foo == 0);
-                let bar = push_checkpoint_segment(
+                assert!(section_index == 0);
+                let section_index_ = push_checkpoint_segment(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
                 );
-                assert!(bar == 0);
+                assert!(section_index_ == 0);
             }
             TrackPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
@@ -653,14 +648,14 @@ fn prepare_track(track_data: &TrackData) -> Track {
                 current_left = data.left;
                 current_right = data.right;
                 assert!(current_left < current_right);
-                let foo = push_section(
+                let section_index = push_section(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
                     current_length,
                 );
-                assert!(foo > 0);
+                assert!(section_index > 0);
             }
             TrackPiece::Corner(data) => {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);
@@ -671,27 +666,27 @@ fn prepare_track(track_data: &TrackData) -> Track {
                 let sign: f32 = if data.radius < 0.0 { 1.0 } else { -1.0 };
                 for kk in 0..data.num_quads {
                     let angle = (kk + 1) as f32 / data.num_quads as f32 * data.angle;
-                    let pos = center + current_forward * f32::abs(data.radius) * f32::sin(angle)
-                        - current_righthand * data.radius * f32::cos(angle);
+                    let pos = center + current_forward * ops::abs(data.radius) * ops::sin(angle)
+                        - current_righthand * data.radius * ops::cos(angle);
                     let quat = Quat::from_axis_angle(track_data.initial_up, sign * angle);
                     let fwd = quat * current_forward;
-                    let len = f32::abs(data.radius) * angle + current_length;
-                    let foo = push_section(&pos, &fwd, current_left, current_right, len);
-                    assert!(foo > 0);
+                    let len = ops::abs(data.radius) * angle + current_length;
+                    let section_index = push_section(&pos, &fwd, current_left, current_right, len);
+                    assert!(section_index > 0);
                 }
                 current_position = center
-                    + current_forward * f32::abs(data.radius) * f32::sin(data.angle)
-                    - current_righthand * data.radius * f32::cos(data.angle);
+                    + current_forward * ops::abs(data.radius) * ops::sin(data.angle)
+                    - current_righthand * data.radius * ops::cos(data.angle);
                 let quat = Quat::from_axis_angle(track_data.initial_up, sign * data.angle);
                 current_forward = quat * current_forward;
-                current_length += f32::abs(data.radius) * data.angle;
+                current_length += ops::abs(data.radius) * data.angle;
                 assert!(current_length != 0.0);
             }
             TrackPiece::Finish => {
                 let pos_error = (current_position - track_data.initial_position).norm();
                 let dir_error = (current_forward - track_data.initial_forward).norm();
-                let left_error = f32::abs(current_left - track_data.initial_left);
-                let right_error = f32::abs(current_right - track_data.initial_right);
+                let left_error = ops::abs(current_left - track_data.initial_left);
+                let right_error = ops::abs(current_right - track_data.initial_right);
                 let eps: f32 = 1e-3;
                 is_looping = pos_error < eps
                     && dir_error < eps
@@ -720,13 +715,13 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     -current_right,
                     -current_left,
                 );
-                let bar = push_checkpoint_segment(
+                let section_index_ = push_checkpoint_segment(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
                 );
-                debug!("Checkpoint {}", bar);
+                debug!("Checkpoint {}", section_index_);
             }
         }
     }
