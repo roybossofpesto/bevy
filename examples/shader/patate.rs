@@ -5,8 +5,8 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
 use bevy::render::render_graph::{RenderGraph, RenderLabel};
 use bevy::render::render_resource::{binding_types::texture_storage_2d, *};
-use bevy::render::{Render, RenderApp, RenderSet};
 use bevy::render::texture::GpuImage;
+use bevy::render::{Render, RenderApp, RenderSet};
 
 use std::borrow::Cow;
 
