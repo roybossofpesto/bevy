@@ -350,7 +350,9 @@ fn update_vehicule_physics(
     for (mut boat, mut transform) in &mut boats {
         if keyboard.just_pressed(KeyCode::KeyR) {
             let player = boat.player.clone();
+            let maybe_best_stat = boat.maybe_best_stat.clone();
             *boat = BoatData::from_player(player);
+            boat.maybe_best_stat = maybe_best_stat;
         }
         let pos_prev = boat.position_previous;
         let pos_current = boat.position_current;
