@@ -2798,10 +2798,6 @@ category = "Shaders"
 wasm = true
 
 [[example]]
-name = "patate"
-path = "examples/shader/patate.rs"
-
-[[example]]
 name = "compute_shader_game_of_life"
 path = "examples/shader/compute_shader_game_of_life.rs"
 doc-scrape-examples = true
