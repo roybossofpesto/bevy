@@ -2,8 +2,7 @@ use kd_tree::{KdPoint, KdTree};
 
 use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
 use bevy::math::ops;
-use bevy::math::NormedVectorSpace;
-use bevy::math::{Mat3, Quat, Vec2, Vec3};
+use bevy::math::{Mat2, Mat3, NormedVectorSpace, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
 use bevy::reflect::TypePath;
 use bevy::render::mesh::Mesh;
@@ -78,27 +77,11 @@ fn populate_tracks(
         Mesh3d(meshes.add(track0.checkpoint.clone())),
         MeshMaterial3d(checkpoint0_material),
     ));
-    let track0_material = materials.add(StandardMaterial {
-        base_color_channel: UvChannel::Uv0,
-        base_color_texture: Some(asset_server.load_with_settings(
-            "textures/fantasy_ui_borders/panel-border-010.png",
-            |s: &mut _| {
-                *s = ImageLoaderSettings {
-                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
-                        // rewriting mode to repeat image,
-                        address_mode_u: ImageAddressMode::Repeat,
-                        address_mode_v: ImageAddressMode::Repeat,
-                        ..ImageSamplerDescriptor::default()
-                    }),
-                    ..ImageLoaderSettings::default()
-                }
-            },
-        )),
-        ..StandardMaterial::default()
-    });
+    let track0_material = materials.add(make_wavy_material(&asset_server, 0.6, PI / 3.0));
     commands.spawn((
+        WavyMarker,
         Mesh3d(meshes.add(track0.track.clone())),
-        MeshMaterial3d(track0_material.clone()),
+        MeshMaterial3d(track0_material),
     ));
 
     // track 1 showcases projected parametrization
@@ -130,9 +113,25 @@ fn populate_tracks(
     ));
 
     // track 2 showcases water effect
-    let track2_material = materials.add(make_wavy_material(&asset_server, 0.5));
+    let track2_material = materials.add(StandardMaterial {
+        base_color_channel: UvChannel::Uv0,
+        base_color_texture: Some(asset_server.load_with_settings(
+            "textures/fantasy_ui_borders/panel-border-010.png",
+            |s: &mut _| {
+                *s = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        // rewriting mode to repeat image,
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..ImageSamplerDescriptor::default()
+                    }),
+                    ..ImageLoaderSettings::default()
+                }
+            },
+        )),
+        ..StandardMaterial::default()
+    });
     commands.spawn((
-        WavyMarker,
         Mesh3d(meshes.add(track1.track.clone())),
         MeshMaterial3d(track2_material),
         Transform::from_xyz(12.0, 0.0, 9.0)
@@ -241,7 +240,7 @@ fn make_racing_line_material(
         lateral_range: Vec2::new(-0.8, 0.8),
         time: 0.0,
         cursor_position: Vec2::ZERO,
-        cursor_radius: 0.5,
+        cursor_radius: 0.25,
         color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
             "textures/slice_square.png",
@@ -277,7 +276,7 @@ fn animate_racing_line_materials(
 #[derive(Component)]
 struct WavyMarker;
 
-fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMaterial {
+fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32, angle: f32) -> StandardMaterial {
     use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
@@ -334,7 +333,9 @@ fn make_wavy_material(asset_server: &Res<AssetServer>, scale: f32) -> StandardMa
             },
         )),
         parallax_depth_scale: 0.1,
-        uv_transform: Affine2::from_scale(Vec2::ONE * scale),
+        uv_transform: Affine2::from_mat2(
+            Mat2::from_diagonal(Vec2::ONE * scale) * Mat2::from_angle(angle),
+        ),
         ..StandardMaterial::default()
     }
 }
@@ -366,6 +367,7 @@ struct StraightData {
     left: f32,
     right: f32,
     length: f32,
+    num_quads: u32,
 }
 
 impl StraightData {
@@ -374,11 +376,17 @@ impl StraightData {
             left: -1.0,
             right: 1.0,
             length: 2.0,
+            num_quads: 4,
         }
     }
     const fn from_length(length: f32) -> Self {
         Self {
             length,
+            num_quads: if 2.0 * length < 1.0 {
+                1
+            } else {
+                (2.0 * length) as u32
+            },
             ..StraightData::default()
         }
     }
@@ -394,6 +402,11 @@ impl StraightData {
             left,
             right,
             length,
+            num_quads: if 2.0 * length < 1.0 {
+                1
+            } else {
+                (2.0 * length) as u32
+            },
         }
     }
 }
@@ -432,12 +445,6 @@ struct TrackData {
     num_segments: u32,
 }
 
-pub struct CheckpointSegment {
-    aa: Vec2,
-    bb: Vec2,
-    pub ii: u8,
-}
-
 #[derive(PartialEq)]
 enum Align {
     Left,
@@ -454,28 +461,50 @@ impl Align {
             return Align::Collinear;
         };
         if cross > 0.0 {
-            Align::Left
-        } else {
             Align::Right
+        } else {
+            Align::Left
         }
     }
 }
 
-impl CheckpointSegment {
+pub struct Segment {
+    aa: Vec2,
+    bb: Vec2,
+    pub ii: u8,
+}
+
+impl Segment {
     pub fn from_endpoints(aa: Vec2, bb: Vec2) -> Self {
         Self { aa, bb, ii: 255 }
     }
 
-    pub fn intersects(pp: &Self, qq: &Self) -> bool {
+    pub fn intersects(&self, qq: &Self) -> bool {
+        let pp = self;
         let qa = Align::from_triplet(&pp.aa, &pp.bb, &qq.aa);
         let qb = Align::from_triplet(&pp.aa, &pp.bb, &qq.bb);
         let pa = Align::from_triplet(&qq.aa, &qq.bb, &pp.aa);
         let pb = Align::from_triplet(&qq.aa, &qq.bb, &pp.bb);
         qa != qb && pa != pb
     }
+
+    pub fn clips(&self, qq: &Self) -> bool {
+        let pp = self;
+        let qa = Align::from_triplet(&pp.aa, &pp.bb, &qq.aa);
+        let qb = Align::from_triplet(&pp.aa, &pp.bb, &qq.bb);
+        qa == Align::Left || qb == Align::Left
+    }
+
+    pub fn mirror(&self, xx: Vec2) -> Vec2 {
+        let ee = (self.bb - self.aa).normalize();
+        let ff = Vec2::new(-ee.y, ee.x);
+        let mut mm = Mat2::from_cols(ee, ff).transpose();
+        mm = mm.transpose() * Mat2::from_diagonal(Vec2::new(1.0, -1.0)) * mm;
+        self.aa + mm * (xx - self.aa)
+    }
 }
 
-impl KdPoint for CheckpointSegment {
+impl KdPoint for Segment {
     type Scalar = f32;
     type Dim = typenum::U4; // 4 dimensional tree.
     fn at(&self, kk: usize) -> f32 {
@@ -495,7 +524,8 @@ pub struct Track {
     pub checkpoint: Mesh,
     pub total_length: f32,
     pub is_looping: bool,
-    pub checkpoint_kdtree: KdTree<CheckpointSegment>,
+    pub track_kdtree: KdTree<Segment>,
+    pub checkpoint_kdtree: KdTree<Segment>,
     pub checkpoint_count: u8,
 }
 
@@ -519,36 +549,41 @@ fn prepare_track(track_data: &TrackData) -> Track {
     let mut checkpoint_positions: Vec<Vec3> = vec![];
     let mut checkpoint_normals: Vec<Vec3> = vec![];
     let mut checkpoint_triangles: Vec<u32> = vec![];
-    let mut push_checkpoint = |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
-        let righthand = forward.cross(track_data.initial_up);
-        let aa = position + righthand * left;
-        let bb = position + righthand * right;
-        let cc = aa + track_data.initial_up;
-        let dd = bb + track_data.initial_up;
-        let next_vertex = checkpoint_positions.len() as u32;
-        checkpoint_positions.push(aa);
-        checkpoint_positions.push(bb);
-        checkpoint_positions.push(cc);
-        checkpoint_positions.push(dd);
-        checkpoint_normals.push(-*forward);
-        checkpoint_normals.push(-*forward);
-        checkpoint_normals.push(-*forward);
-        checkpoint_normals.push(-*forward);
-        let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
-        let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
-        checkpoint_triangles.append(&mut tri_aa);
-        checkpoint_triangles.append(&mut tri_bb);
-        next_vertex
-    };
+    let mut push_checkpoint_gate =
+        |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u32 {
+            const WIDTH: f32 = 0.2;
+            const EPSILON: f32 = 1e-3;
+            let righthand = forward.cross(track_data.initial_up);
+            let aa = position + righthand * left - WIDTH * forward / 2.0
+                + EPSILON * track_data.initial_up;
+            let bb = position + righthand * right - WIDTH * forward / 2.0
+                + EPSILON * track_data.initial_up;
+            let cc = aa + WIDTH * forward;
+            let dd = bb + WIDTH * forward;
+            let next_vertex = checkpoint_positions.len() as u32;
+            checkpoint_positions.push(aa);
+            checkpoint_positions.push(bb);
+            checkpoint_positions.push(cc);
+            checkpoint_positions.push(dd);
+            checkpoint_normals.push(track_data.initial_up);
+            checkpoint_normals.push(track_data.initial_up);
+            checkpoint_normals.push(track_data.initial_up);
+            checkpoint_normals.push(track_data.initial_up);
+            let mut tri_aa = vec![next_vertex, next_vertex + 1, next_vertex + 2];
+            let mut tri_bb = vec![next_vertex + 2, next_vertex + 1, next_vertex + 3];
+            checkpoint_triangles.append(&mut tri_aa);
+            checkpoint_triangles.append(&mut tri_bb);
+            next_vertex
+        };
 
-    let mut checkpoint_segments: Vec<CheckpointSegment> = vec![];
+    let mut checkpoint_segments: Vec<Segment> = vec![];
     let mut push_checkpoint_segment =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32| -> u8 {
             let righthand = forward.cross(track_data.initial_up);
             let aa = position + righthand * left;
             let bb = position + righthand * right;
             let ii = checkpoint_segments.len() as u8;
-            checkpoint_segments.push(CheckpointSegment {
+            checkpoint_segments.push(Segment {
                 aa: aa.xz(),
                 bb: bb.xz(),
                 ii,
@@ -561,6 +596,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
     let mut track_triangles: Vec<u32> = vec![];
     let mut track_uvs: Vec<Vec2> = vec![];
     let mut track_pqs: Vec<Vec2> = vec![];
+    let mut track_segments: Vec<Segment> = vec![];
     let mut push_section =
         |position: &Vec3, forward: &Vec3, left: f32, right: f32, length: f32| -> u32 {
             let left_pos = position + forward.cross(track_data.initial_up) * left;
@@ -601,6 +637,20 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     track_triangles.append(&mut tri_aa);
                     track_triangles.append(&mut tri_bb);
                 }
+                let left_index_ = (next_vertex - num_segments - 1) as usize;
+                let right_index_ = (next_vertex - 1) as usize;
+                let left_pos_ = track_positions[left_index_];
+                let right_pos_ = track_positions[right_index_];
+                track_segments.push(Segment {
+                    aa: left_pos_.xz(),
+                    bb: left_pos.xz(),
+                    ii: 0,
+                });
+                track_segments.push(Segment {
+                    aa: right_pos.xz(),
+                    bb: right_pos_.xz(),
+                    ii: 1,
+                });
             }
             next_vertex
         };
@@ -637,21 +687,32 @@ fn prepare_track(track_data: &TrackData) -> Track {
             }
             TrackPiece::Straight(data) => {
                 debug!("Straight {:?} {:?}", current_position.clone(), data);
+                assert!(current_left < current_right);
+                assert!(data.num_quads > 0);
+                for kk in 0..data.num_quads {
+                    let aa = (kk + 1) as f32 / data.num_quads as f32;
+                    assert!(aa > 0.0);
+                    assert!(aa <= 1.0);
+                    let bb = 3.0 * f32::powi(aa, 2) - 2.0 * f32::powi(aa, 3);
+                    assert!(bb > 0.0);
+                    assert!(bb <= 1.0);
+                    let pos = current_position + current_forward * aa * data.length;
+                    let len = current_length + aa * data.length;
+                    let foo = push_section(
+                        &pos,
+                        &current_forward,
+                        current_left * (1.0 - bb) + data.left * bb,
+                        current_right * (1.0 - bb) + data.right * bb,
+                        len,
+                    );
+                    assert!(foo > 0);
+                }
                 current_position += current_forward * data.length;
                 current_length += data.length;
                 assert!(current_length != 0.0);
-                assert!(current_left < current_right);
                 current_left = data.left;
                 current_right = data.right;
                 assert!(current_left < current_right);
-                let section_index = push_section(
-                    &current_position,
-                    &current_forward,
-                    current_left,
-                    current_right,
-                    current_length,
-                );
-                assert!(section_index > 0);
             }
             TrackPiece::Corner(data) => {
                 debug!("Corner {:?} {:?}", current_position.clone(), data);
@@ -699,17 +760,11 @@ fn prepare_track(track_data: &TrackData) -> Track {
                 );
             }
             TrackPiece::Checkpoint => {
-                push_checkpoint(
+                push_checkpoint_gate(
                     &current_position,
                     &current_forward,
                     current_left,
                     current_right,
-                );
-                push_checkpoint(
-                    &current_position,
-                    &-current_forward,
-                    -current_right,
-                    -current_left,
                 );
                 let section_index_ = push_checkpoint_segment(
                     &current_position,
@@ -764,6 +819,7 @@ fn prepare_track(track_data: &TrackData) -> Track {
         total_length: current_length,
         is_looping,
         checkpoint_count: checkpoint_segments.len() as u8,
+        track_kdtree: KdTree::build_by_ordered_float(track_segments),
         checkpoint_kdtree: KdTree::build_by_ordered_float(checkpoint_segments),
     }
 }
