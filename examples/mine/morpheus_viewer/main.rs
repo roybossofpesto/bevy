@@ -33,9 +33,7 @@ fn main() {
         app.add_plugins(WireframePlugin);
         app.add_systems(
             Update,
-            |mut wireframe_config: ResMut<WireframeConfig>,
-             keyboard: Res<ButtonInput<KeyCode>>|
-             -> () {
+            |mut wireframe_config: ResMut<WireframeConfig>, keyboard: Res<ButtonInput<KeyCode>>| {
                 if keyboard.just_pressed(KeyCode::Space) {
                     wireframe_config.global = !wireframe_config.global;
                 }
@@ -46,7 +44,7 @@ fn main() {
     app.add_plugins(morpheus::MorpheusPlugin);
     // app.add_plugins(track::TrackPlugin);
     // app.add_plugins(simu::SimuPlugin);
-    // app.add_plugins(vehicule::VehiculePlugin);
+    // app.add_plugins(vehicle::VehiclePlugin);
 
     app.run();
 }

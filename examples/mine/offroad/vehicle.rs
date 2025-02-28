@@ -12,14 +12,14 @@ use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
 
-pub struct VehiculePlugin;
+pub struct VehiclePlugin;
 
-impl Plugin for VehiculePlugin {
+impl Plugin for VehiclePlugin {
     fn build(&self, app: &mut App) {
-        info!("** build_vehicule **");
+        info!("** build_vehicle **");
 
-        app.add_systems(Startup, setup_vehicules);
-        app.add_systems(Update, update_vehicule_physics);
+        app.add_systems(Startup, setup_vehicles);
+        app.add_systems(Update, update_vehicle_physics);
         app.add_systems(Update, resolve_checkpoints);
     }
 }
@@ -89,8 +89,8 @@ impl BoatData {
         match player {
             Player::One => BoatData {
                 player: Player::One,
-                position_previous: POS_P1.xz().into(),
-                position_current: POS_P1.xz().into(),
+                position_previous: POS_P1.xz(),
+                position_current: POS_P1.xz(),
                 angle_current: PI,
                 current_stat: LapStat::from(Duration::MAX),
                 maybe_best_stat: None,
@@ -98,8 +98,8 @@ impl BoatData {
             },
             Player::Two => BoatData {
                 player: Player::Two,
-                position_previous: POS_P2.xz().into(),
-                position_current: POS_P2.xz().into(),
+                position_previous: POS_P2.xz(),
+                position_current: POS_P2.xz(),
                 angle_current: PI,
                 current_stat: LapStat::from(Duration::MAX),
                 maybe_best_stat: None,
@@ -112,12 +112,12 @@ impl BoatData {
 #[derive(Component)]
 struct StatusMarker;
 
-fn setup_vehicules(
+fn setup_vehicles(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     server: Res<AssetServer>,
 ) {
-    info!("** setup_vehicules **");
+    info!("** setup_vehicles **");
 
     let my_mesh: Handle<Mesh> = server.load("models/offroad/boat.glb#Mesh0/Primitive0");
 
@@ -163,14 +163,14 @@ fn setup_vehicules(
             parent.spawn((
                 Text::new("status p1"),
                 font.clone(),
-                layout.clone(),
+                layout,
                 node.clone(),
                 StatusMarker,
             ));
             parent.spawn((
                 Text::new("status p2"),
                 font.clone(),
-                layout.clone(),
+                layout,
                 node.clone(),
                 StatusMarker,
             ));
@@ -243,7 +243,7 @@ fn resolve_checkpoints(
                                 }
                             }
                         });
-                        boat.lap_count;
+                        boat.lap_count += 1;
                         boat.current_stat = LapStat::from(top_now);
                     }
                 }
@@ -288,7 +288,8 @@ fn resolve_checkpoints(
                     let best_delta = (*best_duration - best_stat.top_start).as_secs_f32();
                     ss.push(match boat.current_stat.checkpoint_to_tops.get(&kk) {
                         Some(current_duration) => {
-                            let current_delta = (*current_duration - boat.current_stat.top_start).as_secs_f32();
+                            let current_delta =
+                                (*current_duration - boat.current_stat.top_start).as_secs_f32();
                             format!(
                                 "#{} {:>6.3} {:>+5.3}",
                                 kk,
@@ -306,7 +307,7 @@ fn resolve_checkpoints(
     }
 }
 
-fn update_vehicule_physics(
+fn update_vehicle_physics(
     mut boats: Query<(&mut BoatData, &mut Transform)>,
     mut materials: ResMut<Assets<track::RacingLineMaterial>>,
     material_handles: Query<&MeshMaterial3d<track::RacingLineMaterial>>,
@@ -367,7 +368,7 @@ fn update_vehicule_physics(
                 }
                 let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
                 if keyboard.pressed(KeyCode::ArrowUp) {
-                    physics.force += physics.thrust * dir_current
+                    physics.force += physics.thrust * dir_current;
                 }
                 if keyboard.pressed(KeyCode::ArrowDown) {
                     physics.friction = Vec2::ONE * 0.10;
@@ -382,7 +383,7 @@ fn update_vehicule_physics(
                 }
                 let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
                 if keyboard.pressed(KeyCode::KeyW) {
-                    physics.force += physics.thrust * dir_current
+                    physics.force += physics.thrust * dir_current;
                 }
                 if keyboard.pressed(KeyCode::KeyS) {
                     physics.friction = Vec2::ONE * 0.10;
@@ -391,21 +392,18 @@ fn update_vehicule_physics(
         };
         let pos_next = physics.compute_next_pos(pos_prev, pos_current, boat.angle_current);
         boat.position_previous = boat.position_current;
-        boat.position_current = pos_next.into();
+        boat.position_current = pos_next;
         transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
         transform.rotation = Quat::from_axis_angle(Vec3::Y, boat.angle_current);
-        match boat.player {
-            Player::One => {
-                for material_handle in material_handles.iter() {
-                    if let Some(material) = materials.get_mut(material_handle) {
-                        let mut pos = pos_next;
-                        pos -= vec2(-12.0, 0.0);
-                        pos.x = -pos.x;
-                        material.cursor_position = pos;
-                    }
+        if let Player::One = boat.player {
+            for material_handle in material_handles.iter() {
+                if let Some(material) = materials.get_mut(material_handle) {
+                    let mut pos = pos_next;
+                    pos -= vec2(-12.0, 0.0);
+                    pos.x = -pos.x;
+                    material.cursor_position = pos;
                 }
             }
-            _ => {}
-        };
+        }
     }
 }
