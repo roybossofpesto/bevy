@@ -288,7 +288,8 @@ fn resolve_checkpoints(
                     let best_delta = (*best_duration - best_stat.top_start).as_secs_f32();
                     ss.push(match boat.current_stat.checkpoint_to_tops.get(&kk) {
                         Some(current_duration) => {
-                            let current_delta = (*current_duration - boat.current_stat.top_start).as_secs_f32();
+                            let current_delta =
+                                (*current_duration - boat.current_stat.top_start).as_secs_f32();
                             format!(
                                 "#{} {:>6.3} {:>+5.3}",
                                 kk,
