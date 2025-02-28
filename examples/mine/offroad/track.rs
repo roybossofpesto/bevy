@@ -1,7 +1,7 @@
 use kd_tree::{KdPoint, KdTree};
 
 use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
-use bevy::math::ops;
+use bevy::math::{ops, FloatPow};
 use bevy::math::{Mat2, Mat3, NormedVectorSpace, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
 use bevy::reflect::TypePath;
@@ -693,19 +693,19 @@ fn prepare_track(track_data: &TrackData) -> Track {
                     let aa = (kk + 1) as f32 / data.num_quads as f32;
                     assert!(aa > 0.0);
                     assert!(aa <= 1.0);
-                    let bb = 3.0 * f32::powi(aa, 2) - 2.0 * f32::powi(aa, 3);
+                    let bb = 3.0 * aa.squared() - 2.0 * aa.cubed();
                     assert!(bb > 0.0);
                     assert!(bb <= 1.0);
                     let pos = current_position + current_forward * aa * data.length;
                     let len = current_length + aa * data.length;
-                    let foo = push_section(
+                    let section_index = push_section(
                         &pos,
                         &current_forward,
                         current_left * (1.0 - bb) + data.left * bb,
                         current_right * (1.0 - bb) + data.right * bb,
                         len,
                     );
-                    assert!(foo > 0);
+                    assert!(section_index > 0);
                 }
                 current_position += current_forward * data.length;
                 current_length += data.length;

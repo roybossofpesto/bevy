@@ -163,14 +163,14 @@ fn setup_vehicles(
             parent.spawn((
                 Text::new("status p1"),
                 font.clone(),
-                layout.clone(),
+                layout,
                 node.clone(),
                 StatusMarker,
             ));
             parent.spawn((
                 Text::new("status p2"),
                 font.clone(),
-                layout.clone(),
+                layout,
                 node.clone(),
                 StatusMarker,
             ));
@@ -243,7 +243,7 @@ fn resolve_checkpoints(
                                 }
                             }
                         });
-                        boat.lap_count;
+                        boat.lap_count += 1;
                         boat.current_stat = LapStat::from(top_now);
                     }
                 }
