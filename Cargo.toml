@@ -529,26 +529,39 @@ ureq = { version = "2.10.1", features = ["json"] }
 wasm-bindgen = { version = "0.2" }
 web-sys = { version = "0.3", features = ["Window"] }
 
+# Mine
 
 [[example]]
 name = "morpheus_viewer"
 path = "examples/mine/morpheus_viewer/main.rs"
 doc-scrape-examples = true
 
+[package.metadata.example.morpheus_viewer]
+hidden = true
+
 [[example]]
 name = "offroad"
 path = "examples/mine/offroad/main.rs"
 doc-scrape-examples = true
+
+[package.metadata.example.offroad]
+hidden = true
 
 [[example]]
 name = "test_kdtree"
 path = "examples/mine/test_kdtree.rs"
 doc-scrape-examples = true
 
+[package.metadata.example.test_kdtree]
+hidden = true
+
 [[example]]
 name = "lorentz"
 path = "examples/mine/lorentz.rs"
 doc-scrape-examples = true
+
+[package.metadata.example.lorentz]
+hidden = true
 
 [[example]]
 name = "hello_world"
