@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
+use bevy::color::palettes::basic::FUCHSIA;
 use bevy::color::palettes::basic::LIME;
 use bevy::color::palettes::basic::YELLOW;
 use std::f32::consts::PI;
@@ -30,6 +31,7 @@ impl Plugin for VehiclePlugin {
 enum Player {
     One,
     Two,
+    Three,
 }
 
 impl fmt::Display for Player {
@@ -37,6 +39,7 @@ impl fmt::Display for Player {
         match self {
             Player::One => write!(buffer, "P1"),
             Player::Two => write!(buffer, "P2"),
+            Player::Three => write!(buffer, "P3"),
         }
     }
 }
@@ -86,6 +89,7 @@ impl BoatData {
     fn from_player(player: Player) -> Self {
         const POS_P1: Vec3 = Vec3::new(-11.5, 0.0, 0.0);
         const POS_P2: Vec3 = Vec3::new(-12.5, 0.0, 0.0);
+        const POS_P3: Vec3 = Vec3::new(-12.0, 0.0, 0.0);
         match player {
             Player::One => BoatData {
                 player: Player::One,
@@ -100,6 +104,15 @@ impl BoatData {
                 player: Player::Two,
                 position_previous: POS_P2.xz(),
                 position_current: POS_P2.xz(),
+                angle_current: PI,
+                current_stat: LapStat::from(Duration::MAX),
+                maybe_best_stat: None,
+                lap_count: 0,
+            },
+            Player::Three => BoatData {
+                player: Player::Two,
+                position_previous: POS_P3.xz(),
+                position_current: POS_P3.xz(),
                 angle_current: PI,
                 current_stat: LapStat::from(Duration::MAX),
                 maybe_best_stat: None,
@@ -131,15 +144,23 @@ fn setup_vehicles(
         BoatData::from_player(Player::One),
     ));
     commands.spawn((
-        Mesh3d(my_mesh),
+        Mesh3d(my_mesh.clone()),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::from(LIME),
+            base_color: Color::hsv(270.0, 0.27, 0.87),
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::Two),
     ));
-
+    commands.spawn((
+        Mesh3d(my_mesh),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::from(FUCHSIA),
+            ..StandardMaterial::default()
+        })),
+        Transform::from_scale(Vec3::ONE * 0.15),
+        BoatData::from_player(Player::Three),
+    ));
     commands
         .spawn(Node {
             position_type: PositionType::Absolute,
@@ -319,6 +340,7 @@ fn update_vehicle_physics(
         mass: f32,
         friction: Vec2,
         thrust: f32,
+        brake: f32,
         turning_speed: f32,
         force: Vec2,
         dt: f32,
@@ -328,9 +350,10 @@ fn update_vehicle_physics(
         fn from_dt(dt: f32) -> Self {
             Self {
                 mass: 100.0,                      // kg
-                friction: Vec2::new(5e-2, 10e-3), // 0 <= f < 1
-                thrust: 500.0,                    // m / s^2 / kg ~ N
-                turning_speed: PI / 2.0,          // rad / s
+                friction: Vec2::new(1e-2, 10e-3), // 0 <= f < 1
+                thrust: 1000.0,                   // m / s^2 / kg ~ N
+                brake: 500.0,                     // m / s^2 / kg ~ N
+                turning_speed: 3.0 * PI / 4.0,    // rad / s
                 force: Vec2::ZERO,                // m / s^2 /kg ~ N
                 dt,                               // s
             }
@@ -372,7 +395,24 @@ fn update_vehicle_physics(
                     physics.force += physics.thrust * dir_current;
                 }
                 if keyboard.pressed(KeyCode::ArrowDown) {
-                    physics.friction = Vec2::ONE * 0.10;
+                    // physics.friction = Vec2::ONE * 0.10;
+                    physics.force -= physics.brake * dir_current;
+                }
+            }
+            Player::Three => {
+                if keyboard.pressed(KeyCode::KeyA) {
+                    boat.angle_current += physics.turning_speed * dt;
+                }
+                if keyboard.pressed(KeyCode::KeyD) {
+                    boat.angle_current -= physics.turning_speed * dt;
+                }
+                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
+                if keyboard.pressed(KeyCode::KeyW) {
+                    physics.force += physics.thrust * dir_current;
+                }
+                if keyboard.pressed(KeyCode::KeyS) {
+                    // physics.friction = Vec2::ONE * 0.10;
+                    physics.force -= physics.brake * dir_current;
                 }
             }
             Player::Two => {
@@ -386,7 +426,8 @@ fn update_vehicle_physics(
                         physics.force += physics.thrust * dir_current;
                     }
                     if gamepad.pressed(GamepadButton::North) {
-                        physics.friction = Vec2::ONE * 0.10;
+                        // physics.friction = Vec2::ONE * 0.10;
+                        physics.force -= physics.brake * dir_current;
                     }
                 }
             }
