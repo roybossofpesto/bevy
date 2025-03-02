@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use bevy::color::palettes::basic::FUCHSIA;
+const PINK: Color = Color::hsv(270.0, 0.27, 0.87);
+
 use bevy::color::palettes::basic::LIME;
 use bevy::color::palettes::basic::YELLOW;
 use std::f32::consts::PI;
@@ -110,7 +111,7 @@ impl BoatData {
                 lap_count: 0,
             },
             Player::Three => BoatData {
-                player: Player::Two,
+                player: Player::Three,
                 position_previous: POS_P3.xz(),
                 position_current: POS_P3.xz(),
                 angle_current: PI,
@@ -146,7 +147,7 @@ fn setup_vehicles(
     commands.spawn((
         Mesh3d(my_mesh.clone()),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::hsv(270.0, 0.27, 0.87),
+            base_color: PINK,
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
@@ -155,7 +156,7 @@ fn setup_vehicles(
     commands.spawn((
         Mesh3d(my_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::from(FUCHSIA),
+            base_color: Color::from(LIME),
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
@@ -190,6 +191,13 @@ fn setup_vehicles(
             ));
             parent.spawn((
                 Text::new("status p2"),
+                font.clone(),
+                layout,
+                node.clone(),
+                StatusMarker,
+            ));
+            parent.spawn((
+                Text::new("status p3"),
                 font.clone(),
                 layout,
                 node.clone(),
@@ -350,10 +358,10 @@ fn update_vehicle_physics(
         fn from_dt(dt: f32) -> Self {
             Self {
                 mass: 100.0,                      // kg
-                friction: Vec2::new(1e-2, 10e-3), // 0 <= f < 1
-                thrust: 1000.0,                   // m / s^2 / kg ~ N
-                brake: 500.0,                     // m / s^2 / kg ~ N
-                turning_speed: 3.0 * PI / 4.0,    // rad / s
+                friction: Vec2::new(5e-2, 1e-2), // 0 <= f < 1
+                thrust: 1500.0,                   // m / s^2 / kg ~ N
+                brake: 800.0,                     // m / s^2 / kg ~ N
+                turning_speed: 5.0 * PI / 4.0,    // rad / s
                 force: Vec2::ZERO,                // m / s^2 /kg ~ N
                 dt,                               // s
             }
