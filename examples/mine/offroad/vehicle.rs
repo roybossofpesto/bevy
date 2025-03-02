@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use bevy::color::palettes::basic::PURPLE;
+use bevy::color::palettes::basic::LIME;
 use bevy::color::palettes::basic::YELLOW;
 use std::f32::consts::PI;
 
@@ -133,7 +133,7 @@ fn setup_vehicles(
     commands.spawn((
         Mesh3d(my_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::from(PURPLE),
+            base_color: Color::from(LIME),
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
@@ -313,6 +313,7 @@ fn update_vehicle_physics(
     material_handles: Query<&MeshMaterial3d<track::RacingLineMaterial>>,
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    gamepads: Query<(Entity, &Gamepad)>,
 ) {
     struct BoatPhysics {
         mass: f32,
@@ -375,18 +376,18 @@ fn update_vehicle_physics(
                 }
             }
             Player::Two => {
-                if keyboard.pressed(KeyCode::KeyA) {
-                    boat.angle_current += physics.turning_speed * dt;
-                }
-                if keyboard.pressed(KeyCode::KeyD) {
-                    boat.angle_current -= physics.turning_speed * dt;
-                }
-                let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
-                if keyboard.pressed(KeyCode::KeyW) {
-                    physics.force += physics.thrust * dir_current;
-                }
-                if keyboard.pressed(KeyCode::KeyS) {
-                    physics.friction = Vec2::ONE * 0.10;
+                for (_, gamepad) in &gamepads {
+                    let left_stick_x = gamepad.get(GamepadAxis::LeftStickX).unwrap();
+                    if left_stick_x.abs() > 0.01 {
+                        boat.angle_current -= physics.turning_speed * left_stick_x * dt;
+                    }
+                    let dir_current = Vec2::from_angle(3.0 * PI / 2.0 - boat.angle_current);
+                    if gamepad.pressed(GamepadButton::East) {
+                        physics.force += physics.thrust * dir_current;
+                    }
+                    if gamepad.pressed(GamepadButton::North) {
+                        physics.friction = Vec2::ONE * 0.10;
+                    }
                 }
             }
         };
