@@ -1,6 +1,6 @@
 use kd_tree::{KdPoint, KdTree};
 
-use bevy::asset::{weak_handle, Asset, AssetApp, AssetServer, Assets};
+use bevy::asset::{Asset, AssetApp, AssetServer, Assets};
 use bevy::math::{ops, FloatPow};
 use bevy::math::{Mat2, Mat3, NormedVectorSpace, Quat, Vec2, Vec3};
 use bevy::pbr::StandardMaterial;
@@ -37,13 +37,14 @@ impl bevy::prelude::Plugin for TrackPlugin {
 
 //////////////////////////////////////////////////////////////////////
 
-pub const TRACK0_HANDLE: Handle<Track> = weak_handle!("1347c9b7-c46a-48e7-0000-023a354b7cac");
-pub const TRACK1_HANDLE: Handle<Track> = weak_handle!("1347c9b7-c46a-48e7-1111-023a354b7cac");
-
 fn prepare_tracks(mut tracks: ResMut<Assets<Track>>) {
     info!("** prepare_tracks **");
-    tracks.insert(&TRACK0_HANDLE, prepare_track(&TRACK0_DATA));
-    tracks.insert(&TRACK1_HANDLE, prepare_track(&TRACK1_DATA));
+    use crate::track_datas::*;
+    // let track0 = tracks.get(&track_datas::TRACK_BEGINNER_HANDLE).unwrap();
+    // let track1 = tracks.get(&track_datas::TRACK_VERTICAL_HANDLE).unwrap();
+    tracks.insert(&TRACK_BEGINNER_HANDLE, prepare_track(&TRACK_BEGINNER_DATA));
+    tracks.insert(&TRACK_VERTICAL_HANDLE, prepare_track(&TRACK_VERTICAL_DATA));
+    tracks.insert(&TRACK_ADVANCED_HANDLE, prepare_track(&TRACK_ADVANCED_DATA));
 }
 
 fn populate_tracks(
@@ -53,6 +54,7 @@ fn populate_tracks(
     tracks: Res<Assets<Track>>,
     asset_server: Res<AssetServer>,
 ) {
+    use crate::track_datas;
     use bevy::color::Color;
     use bevy::image::ImageAddressMode;
     use bevy::image::ImageLoaderSettings;
@@ -64,8 +66,8 @@ fn populate_tracks(
 
     info!("** populate_tracks **");
 
-    let track0 = tracks.get(&TRACK0_HANDLE).unwrap();
-    let track1 = tracks.get(&TRACK1_HANDLE).unwrap();
+    let track0 = tracks.get(&track_datas::TRACK_BEGINNER_HANDLE).unwrap();
+    let track1 = tracks.get(&track_datas::TRACK_VERTICAL_HANDLE).unwrap();
 
     // track 0 showcases flow parametrization
     let checkpoint0_material = materials.add(StandardMaterial {
@@ -146,12 +148,12 @@ fn populate_racing_lines(
     tracks: Res<Assets<Track>>,
     asset_server: Res<AssetServer>,
 ) {
+    use crate::track_datas;
     use bevy::prelude::Transform;
-
     info!("** populate_track_dots **");
 
-    let track0 = tracks.get(&TRACK0_HANDLE).unwrap();
-    let track1 = tracks.get(&TRACK1_HANDLE).unwrap();
+    let track0 = tracks.get(&track_datas::TRACK_BEGINNER_HANDLE).unwrap();
+    let track1 = tracks.get(&track_datas::TRACK_VERTICAL_HANDLE).unwrap();
 
     // track 3 showcases racing lines on track 0 data
     let track3_material = make_racing_line_material(&asset_server, track0.total_length);
@@ -354,7 +356,7 @@ fn animate_wavy_materials(
 
 //////////////////////////////////////////////////////////////////////
 
-enum TrackPiece {
+pub enum TrackPiece {
     Start,
     Straight(StraightData),
     Corner(CornerData),
@@ -363,7 +365,7 @@ enum TrackPiece {
 }
 
 #[derive(Debug)]
-struct StraightData {
+pub struct StraightData {
     left: f32,
     right: f32,
     length: f32,
@@ -371,7 +373,7 @@ struct StraightData {
 }
 
 impl StraightData {
-    const fn default() -> Self {
+    pub const fn default() -> Self {
         Self {
             left: -1.0,
             right: 1.0,
@@ -379,7 +381,7 @@ impl StraightData {
             num_quads: 4,
         }
     }
-    const fn from_length(length: f32) -> Self {
+    pub const fn from_length(length: f32) -> Self {
         Self {
             length,
             num_quads: if 2.0 * length < 1.0 {
@@ -390,14 +392,14 @@ impl StraightData {
             ..StraightData::default()
         }
     }
-    const fn from_left_right(left: f32, right: f32) -> Self {
+    pub const fn from_left_right(left: f32, right: f32) -> Self {
         Self {
             left,
             right,
             ..StraightData::default()
         }
     }
-    const fn from_left_right_length(left: f32, right: f32, length: f32) -> Self {
+    pub const fn from_left_right_length(left: f32, right: f32, length: f32) -> Self {
         Self {
             left,
             right,
@@ -412,21 +414,21 @@ impl StraightData {
 }
 
 #[derive(Debug)]
-struct CornerData {
+pub struct CornerData {
     radius: f32,
     angle: f32,
     num_quads: u32,
 }
 
 impl CornerData {
-    const fn right_turn() -> Self {
+    pub const fn right_turn() -> Self {
         Self {
             radius: 2.0,
             angle: PI / 2.0,
             num_quads: 8,
         }
     }
-    const fn left_turn() -> Self {
+    pub const fn left_turn() -> Self {
         Self {
             radius: -2.0,
             angle: PI / 2.0,
@@ -435,14 +437,14 @@ impl CornerData {
     }
 }
 
-struct TrackData {
-    pieces: &'static [TrackPiece],
-    initial_position: Vec3,
-    initial_forward: Vec3,
-    initial_up: Vec3,
-    initial_left: f32,
-    initial_right: f32,
-    num_segments: u32,
+pub struct TrackData {
+    pub pieces: &'static [TrackPiece],
+    pub initial_position: Vec3,
+    pub initial_forward: Vec3,
+    pub initial_up: Vec3,
+    pub initial_left: f32,
+    pub initial_right: f32,
+    pub num_segments: u32,
 }
 
 #[derive(PartialEq)]
@@ -823,67 +825,3 @@ fn prepare_track(track_data: &TrackData) -> Track {
         checkpoint_kdtree: KdTree::build_by_ordered_float(checkpoint_segments),
     }
 }
-
-//////////////////////////////////////////////////////////////////////
-
-static TRACK0_PIECES: [TrackPiece; 22] = [
-    TrackPiece::Start,
-    TrackPiece::Straight(StraightData::default()),
-    TrackPiece::Corner(CornerData::left_turn()),
-    TrackPiece::Checkpoint,
-    TrackPiece::Straight(StraightData::from_length(8.0)),
-    TrackPiece::Checkpoint,
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Checkpoint,
-    TrackPiece::Straight(StraightData::default()),
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Checkpoint,
-    TrackPiece::Straight(StraightData::from_length(14.0)),
-    TrackPiece::Checkpoint,
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(11.0)),
-    TrackPiece::Checkpoint,
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::default()),
-    TrackPiece::Checkpoint,
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(3.0)),
-    TrackPiece::Finish,
-];
-
-static TRACK0_DATA: TrackData = TrackData {
-    pieces: &TRACK0_PIECES,
-    initial_position: Vec3::new(-12.0, 0.0, 0.0),
-    initial_forward: Vec3::Z,
-    initial_up: Vec3::Y,
-    initial_left: -1.0,
-    initial_right: 1.0,
-    num_segments: 4,
-};
-
-static TRACK1_PIECES: [TrackPiece; 14] = [
-    TrackPiece::Start,
-    TrackPiece::Straight(StraightData::from_length(5.0)),
-    TrackPiece::Straight(StraightData::from_left_right(-1.0, 0.5)),
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::default()),
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_length(2.0)),
-    TrackPiece::Straight(StraightData::from_left_right(-2.0, 1.0)),
-    TrackPiece::Straight(StraightData::from_left_right_length(-2.0, 1.0, 4.0)),
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_left_right(-2.0, 1.0)),
-    TrackPiece::Corner(CornerData::right_turn()),
-    TrackPiece::Straight(StraightData::from_left_right_length(-2.0, 1.0, 1.0)),
-    TrackPiece::Finish,
-];
-
-static TRACK1_DATA: TrackData = TrackData {
-    pieces: &TRACK1_PIECES,
-    initial_position: Vec3::new(1.0, 2.0, 0.0),
-    initial_forward: Vec3::new(-1.0, 0.0, 0.0),
-    initial_up: Vec3::Z,
-    initial_left: -2.0,
-    initial_right: 1.0,
-    num_segments: 4,
-};

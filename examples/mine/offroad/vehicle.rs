@@ -287,7 +287,8 @@ fn resolve_checkpoints(
     tracks: Res<Assets<track::Track>>,
     time: Res<Time>,
 ) {
-    let Some(track) = tracks.get(&track::TRACK0_HANDLE) else {
+    use crate::track_datas;
+    let Some(track) = tracks.get(&track_datas::TRACK_BEGINNER_HANDLE) else {
         return;
     };
 
