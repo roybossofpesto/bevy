@@ -29,19 +29,19 @@ use bevy::prelude::{Quat, Vec3};
 const CAMERA_DATAS: &[(Transform, f32)] = &[
     (
         Transform {
-            translation: Vec3::new(-10.0, 10.0, 14.0),
-            rotation: Quat::from_xyzw(-0.24781081, -0.2946635, -0.07941471, 0.91948706),
-            scale: Vec3::ONE,
-        },
-        20.0,
-    ),
-    (
-        Transform {
             translation: Vec3::new(-18.0, 10.0, 16.0),
             rotation: Quat::from_xyzw(-0.24781081, -0.2946635, -0.07941471, 0.91948706),
             scale: Vec3::ONE,
         },
         13.0,
+    ),
+    (
+        Transform {
+            translation: Vec3::new(-10.0, 10.0, 14.0),
+            rotation: Quat::from_xyzw(-0.24781081, -0.2946635, -0.07941471, 0.91948706),
+            scale: Vec3::ONE,
+        },
+        20.0,
     ),
 ];
 
@@ -60,6 +60,7 @@ fn move_camera(
 
     if button.just_pressed(MouseButton::Left) {
         *current_view = (*current_view + 1) % CAMERA_DATAS.len();
+        bevy::prelude::info!("switched camera {}", current_view.clone());
     }
     let target = CAMERA_DATAS[*current_view];
     camera_projection.0.translation = camera_projection
@@ -74,7 +75,6 @@ fn move_camera(
         },
         ..OrthographicProjection::default_3d()
     });
-    bevy::prelude::info!("dfkjl {:?}", camera_projection.1);
 }
 
 //////////////////////////////////////////////////////////////////////

@@ -240,7 +240,7 @@ fn make_racing_line_material(
         lateral_range: Vec2::new(-0.8, 0.8),
         time: 0.0,
         cursor_position: Vec2::ZERO,
-        cursor_radius: 0.25,
+        cursor_radius: 0.4,
         color: LinearRgba::from(WHITE),
         color_texture: Some(asset_server.load_with_settings(
             "textures/slice_square.png",
