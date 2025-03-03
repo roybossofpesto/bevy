@@ -6,10 +6,13 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-const PINK: Color = Color::hsv(270.0, 0.27, 0.87);
+// const PINK: Color = Color::hsv(270.0, 0.27, 0.87);
 
 use bevy::color::palettes::basic::LIME;
 use bevy::color::palettes::basic::YELLOW;
+use bevy::color::palettes::css::GOLD;
+use bevy::color::palettes::css::LIGHT_PINK;
+
 use std::f32::consts::PI;
 
 //////////////////////////////////////////////////////////////////////
@@ -23,6 +26,7 @@ impl Plugin for VehiclePlugin {
         app.add_systems(Startup, setup_vehicles);
         app.add_systems(Update, update_vehicle_physics);
         app.add_systems(Update, resolve_checkpoints);
+        app.add_systems(Update, update_best_place);
     }
 }
 
@@ -126,6 +130,9 @@ impl BoatData {
 #[derive(Component)]
 struct StatusMarker;
 
+#[derive(Component)]
+struct FirstPlaceMarker;
+
 fn setup_vehicles(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -147,7 +154,7 @@ fn setup_vehicles(
     commands.spawn((
         Mesh3d(my_mesh.clone()),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: PINK,
+            base_color: Color::from(LIGHT_PINK),
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
@@ -162,11 +169,30 @@ fn setup_vehicles(
         Transform::from_scale(Vec3::ONE * 0.15),
         BoatData::from_player(Player::Three),
     ));
+
+    commands.spawn((
+        Text::new("best"),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            right: Val::Px(5.0),
+            ..default()
+        },
+        TextFont {
+            // font_color: Color::from(RED),
+            font_size: 25.0,
+            ..default()
+        },
+        TextLayout::new_with_justify(JustifyText::Center),
+        TextColor(GOLD.into()),
+        FirstPlaceMarker,
+    ));
+
     commands
         .spawn(Node {
             position_type: PositionType::Absolute,
             top: Val::Px(5.0),
-            right: Val::Px(5.0),
+            right: Val::Px(75.0),
             ..default()
         })
         .with_children(|parent| {
@@ -206,9 +232,46 @@ fn setup_vehicles(
         });
 }
 
+fn update_best_place(
+    // boats: Query<&BoatData>,
+    first_place_labels: Query<&mut Text, With<FirstPlaceMarker>>,
+) {
+    let mut foo: Option<(Duration, Player)> = None;
+    /*
+    for boat in &boats {
+        let Some(best_stat) = &boat.maybe_best_stat else {
+            return;
+        };
+
+        let lap_duration = best_stat.top_finish - best_stat.top_start;
+
+        best_duration_player = match best_duration_player {
+            Some(foo) => {
+                if (best_lap_duration > foo.0) {
+                    Some((best_lap_duration, boat.player.clone()))
+                } else {
+                    Some(foo)
+                }
+            }
+            None => Some((best_lap_duration, boat.player.clone())),
+        };
+    }
+    */
+
+    let name = match foo {
+        Some((_, player)) => format!("{}", player),
+        None => "??".into(),
+    };
+
+    for mut first_place_label in first_place_labels {
+        *first_place_label = format!("BEST\n{}", name).into();
+    }
+
+}
+
 fn resolve_checkpoints(
     mut boats: Query<&mut BoatData>,
-    labels: Query<&mut Text, With<StatusMarker>>,
+    status_labels: Query<&mut Text, With<StatusMarker>>,
     tracks: Res<Assets<track::Track>>,
     time: Res<Time>,
 ) {
@@ -285,8 +348,8 @@ fn resolve_checkpoints(
     }
 
     // prepare ui status label
-    assert!(boats.iter().len() == labels.iter().len());
-    for (boat, mut label) in boats.iter().zip(labels) {
+    assert!(boats.iter().len() == status_labels.iter().len());
+    for (boat, mut status_label) in boats.iter().zip(status_labels) {
         let mut ss: Vec<String> = vec![];
         ss.push(format!(
             "{} lap{} {:>6.3} {:>6.3}",
@@ -331,8 +394,7 @@ fn resolve_checkpoints(
                 }
             }
         }
-
-        *label = ss.join("\n").into();
+        *status_label = ss.join("\n").into();
     }
 }
 
@@ -357,13 +419,13 @@ fn update_vehicle_physics(
     impl BoatPhysics {
         fn from_dt(dt: f32) -> Self {
             Self {
-                mass: 100.0,                      // kg
+                mass: 100.0,                     // kg
                 friction: Vec2::new(5e-2, 1e-2), // 0 <= f < 1
-                thrust: 1500.0,                   // m / s^2 / kg ~ N
-                brake: 800.0,                     // m / s^2 / kg ~ N
-                turning_speed: 5.0 * PI / 4.0,    // rad / s
-                force: Vec2::ZERO,                // m / s^2 /kg ~ N
-                dt,                               // s
+                thrust: 1500.0,                  // m / s^2 / kg ~ N
+                brake: 800.0,                    // m / s^2 / kg ~ N
+                turning_speed: 5.0 * PI / 4.0,   // rad / s
+                force: Vec2::ZERO,               // m / s^2 /kg ~ N
+                dt,                              // s
             }
         }
     }
