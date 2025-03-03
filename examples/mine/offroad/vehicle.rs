@@ -9,8 +9,9 @@ use bevy::prelude::*;
 // const PINK: Color = Color::hsv(270.0, 0.27, 0.87);
 
 use bevy::color::palettes::basic::LIME;
-use bevy::color::palettes::basic::YELLOW;
+// use bevy::color::palettes::basic::YELLOW;
 use bevy::color::palettes::css::GOLD;
+use bevy::color::palettes::css::GRAY;
 use bevy::color::palettes::css::LIGHT_PINK;
 
 use std::f32::consts::PI;
@@ -145,7 +146,7 @@ fn setup_vehicles(
     commands.spawn((
         Mesh3d(my_mesh.clone()),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::from(YELLOW),
+            base_color: Color::from(GRAY),
             ..StandardMaterial::default()
         })),
         Transform::from_scale(Vec3::ONE * 0.15),
@@ -233,32 +234,28 @@ fn setup_vehicles(
 }
 
 fn update_best_place(
-    // boats: Query<&BoatData>,
+    boats: Query<&BoatData>,
     first_place_labels: Query<&mut Text, With<FirstPlaceMarker>>,
 ) {
-    let mut foo: Option<(Duration, Player)> = None;
-    /*
+    let mut maybe_current_best: Option<(Duration, Player)> = None;
     for boat in &boats {
         let Some(best_stat) = &boat.maybe_best_stat else {
-            return;
+            continue;
         };
-
         let lap_duration = best_stat.top_finish - best_stat.top_start;
-
-        best_duration_player = match best_duration_player {
-            Some(foo) => {
-                if (best_lap_duration > foo.0) {
-                    Some((best_lap_duration, boat.player.clone()))
+        maybe_current_best = match maybe_current_best {
+            None => Some((lap_duration, boat.player.clone())),
+            Some(current_best) => {
+                if lap_duration < current_best.0 {
+                    Some((lap_duration, boat.player.clone()))
                 } else {
-                    Some(foo)
+                    Some(current_best)
                 }
             }
-            None => Some((best_lap_duration, boat.player.clone())),
         };
     }
-    */
 
-    let name = match foo {
+    let name = match maybe_current_best {
         Some((_, player)) => format!("{}", player),
         None => "??".into(),
     };
@@ -266,7 +263,6 @@ fn update_best_place(
     for mut first_place_label in first_place_labels {
         *first_place_label = format!("BEST\n{}", name).into();
     }
-
 }
 
 fn resolve_checkpoints(
