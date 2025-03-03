@@ -9,9 +9,72 @@ pub struct ScenePlugin;
 impl bevy::prelude::Plugin for ScenePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         use bevy::prelude::Startup;
+        use bevy::prelude::Update;
         app.add_systems(Startup, populate_background);
         app.add_systems(Startup, populate_camera_and_lights);
+        app.add_systems(Update, move_camera);
     }
+}
+
+//////////////////////////////////////////////////////////////////////
+
+/// The camera, used to move camera on click.
+#[derive(bevy::prelude::Component)]
+struct CameraController;
+
+use bevy::prelude::Projection;
+use bevy::prelude::Transform;
+use bevy::prelude::{Quat, Vec3};
+
+const CAMERA_DATAS: &[(Transform, f32)] = &[
+    (
+        Transform {
+            translation: Vec3::new(-10.0, 10.0, 14.0),
+            rotation: Quat::from_xyzw(-0.24781081, -0.2946635, -0.07941471, 0.91948706),
+            scale: Vec3::ONE,
+        },
+        20.0,
+    ),
+    (
+        Transform {
+            translation: Vec3::new(-14.0, 10.0, 16.0),
+            rotation: Quat::from_xyzw(-0.24781081, -0.2946635, -0.07941471, 0.91948706),
+            scale: Vec3::ONE,
+        },
+        12.0,
+    ),
+];
+
+use bevy::prelude::ButtonInput;
+use bevy::prelude::Local;
+use bevy::prelude::MouseButton;
+use bevy::prelude::{Single, With};
+
+fn move_camera(
+    mut camera_projection: Single<(&mut Transform, &mut Projection), With<CameraController>>,
+    mut current_view: Local<usize>,
+    button: Res<ButtonInput<MouseButton>>,
+) {
+    use bevy::render::camera::ScalingMode;
+    use bevy_render::camera::OrthographicProjection;
+
+    if button.just_pressed(MouseButton::Left) {
+        *current_view = (*current_view + 1) % CAMERA_DATAS.len();
+    }
+    let target = CAMERA_DATAS[*current_view];
+    camera_projection.0.translation = camera_projection
+        .0
+        .translation
+        .lerp(target.0.translation, 0.2);
+    camera_projection.0.rotation = camera_projection.0.rotation.slerp(target.0.rotation, 0.2);
+    *camera_projection.1 = Projection::from(OrthographicProjection {
+        // 20 world units per pixel of window height.
+        scaling_mode: ScalingMode::FixedVertical {
+            viewport_height: target.1,
+        },
+        ..OrthographicProjection::default_3d()
+    });
+    bevy::prelude::info!("dfkjl {:?}", camera_projection.1);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -103,11 +166,12 @@ fn populate_camera_and_lights(mut commands: Commands) {
         Projection::from(OrthographicProjection {
             // 20 world units per pixel of window height.
             scaling_mode: ScalingMode::FixedVertical {
-                viewport_height: 20.0,
+                viewport_height: CAMERA_DATAS[0].1,
             },
             ..OrthographicProjection::default_3d()
         }),
-        Transform::from_xyz(-10.0, 10.0, 14.0).looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
+        CAMERA_DATAS[0].0,
+        CameraController,
     ));
 }
 
