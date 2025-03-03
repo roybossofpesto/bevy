@@ -37,11 +37,11 @@ const CAMERA_DATAS: &[(Transform, f32)] = &[
     ),
     (
         Transform {
-            translation: Vec3::new(-14.0, 10.0, 16.0),
+            translation: Vec3::new(-18.0, 10.0, 16.0),
             rotation: Quat::from_xyzw(-0.24781081, -0.2946635, -0.07941471, 0.91948706),
             scale: Vec3::ONE,
         },
-        12.0,
+        13.0,
     ),
 ];
 
