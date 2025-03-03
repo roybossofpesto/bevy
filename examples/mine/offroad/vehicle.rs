@@ -9,7 +9,6 @@ use bevy::prelude::*;
 // const PINK: Color = Color::hsv(270.0, 0.27, 0.87);
 
 use bevy::color::palettes::basic::LIME;
-// use bevy::color::palettes::basic::YELLOW;
 use bevy::color::palettes::css::GOLD;
 use bevy::color::palettes::css::GRAY;
 use bevy::color::palettes::css::LIGHT_PINK;
@@ -27,13 +26,13 @@ impl Plugin for VehiclePlugin {
         app.add_systems(Startup, setup_vehicles);
         app.add_systems(Update, update_vehicle_physics);
         app.add_systems(Update, resolve_checkpoints);
-        app.add_systems(Update, update_best_place);
+        app.add_systems(Update, update_first_place);
     }
 }
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum Player {
     One,
     Two,
@@ -180,7 +179,6 @@ fn setup_vehicles(
             ..default()
         },
         TextFont {
-            // font_color: Color::from(RED),
             font_size: 25.0,
             ..default()
         },
@@ -233,7 +231,9 @@ fn setup_vehicles(
         });
 }
 
-fn update_best_place(
+fn update_first_place(
+    mut materials: ResMut<Assets<track::RacingLineMaterial>>,
+    material_handles: Query<&MeshMaterial3d<track::RacingLineMaterial>>,
     boats: Query<&BoatData>,
     first_place_labels: Query<&mut Text, With<FirstPlaceMarker>>,
 ) {
@@ -255,8 +255,24 @@ fn update_best_place(
         };
     }
 
-    let name = match maybe_current_best {
-        Some((_, player)) => format!("{}", player),
+    if let Some((_, player)) = &maybe_current_best {
+        for material_handle in material_handles.iter() {
+            if let Some(material) = materials.get_mut(material_handle) {
+                for boat in boats {
+                    if boat.player != *player {
+                        continue;
+                    }
+                    let mut pos = boat.position_current;
+                    pos -= vec2(-12.0, 0.0);
+                    pos.x = -pos.x;
+                    material.cursor_position = pos;
+                }
+            }
+        }
+    }
+
+    let name = match &maybe_current_best {
+        Some((_, player)) => format!("{}", player.clone()),
         None => "??".into(),
     };
 
@@ -396,8 +412,6 @@ fn resolve_checkpoints(
 
 fn update_vehicle_physics(
     mut boats: Query<(&mut BoatData, &mut Transform)>,
-    mut materials: ResMut<Assets<track::RacingLineMaterial>>,
-    material_handles: Query<&MeshMaterial3d<track::RacingLineMaterial>>,
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
     gamepads: Query<(Entity, &Gamepad)>,
@@ -503,15 +517,5 @@ fn update_vehicle_physics(
         boat.position_current = pos_next;
         transform.translation = Vec3::new(pos_next.x, 0.0, pos_next.y);
         transform.rotation = Quat::from_axis_angle(Vec3::Y, boat.angle_current);
-        if let Player::One = boat.player {
-            for material_handle in material_handles.iter() {
-                if let Some(material) = materials.get_mut(material_handle) {
-                    let mut pos = pos_next;
-                    pos -= vec2(-12.0, 0.0);
-                    pos.x = -pos.x;
-                    material.cursor_position = pos;
-                }
-            }
-        }
     }
 }
